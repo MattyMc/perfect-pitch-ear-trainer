@@ -1,0 +1,6 @@
+{
+  "name": "Eguchi Absolute-Pitch Trainer",
+  "description": "A parent-supervised training instrument for absolute-pitch identification.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
