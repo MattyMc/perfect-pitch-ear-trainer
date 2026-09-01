@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CHORDS_MAP } from '../chords';
 import { audio } from '../audio';
 import { Check, Ear } from 'lucide-react';

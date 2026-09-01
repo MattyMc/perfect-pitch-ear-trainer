@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Ear, Palette, Sparkles, Clock, CheckCircle2, Music2, ArrowRight } from 'lucide-react';
 import { db } from '../db';
 import { audio } from '../audio';

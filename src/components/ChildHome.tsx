@@ -1,4 +1,3 @@
-import React from 'react';
 import { Ear } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { audio } from '../audio';

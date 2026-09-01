@@ -2,7 +2,6 @@ import * as Tone from 'tone';
 
 export class AudioEngine {
   private sampler: Tone.Sampler | null = null;
-  private isReady = false;
 
   constructor() {
     // Setup listeners on window to automatically unlock on first user gesture
@@ -42,22 +41,16 @@ export class AudioEngine {
       }
 
       await Tone.loaded();
-      this.isReady = true;
     } catch (err) {
       console.warn('Could not initialize Tone.js AudioContext:', err);
       throw new Error("Failed to load required audio files. Please check your connection or reload.");
     }
   }
 
-  get ready() {
-    return this.isReady && Tone.context.state === 'running';
-  }
-
   /**
    * Play an acoustic piano chord using Tone.js Sampler
-   * @param onStart Optional callback fired exactly when audio playback begins (via Tone.Draw)
    */
-  playChord(midiNotes: number[], onStart?: () => void): number {
+  playChord(midiNotes: number[]): number {
     if (!this.sampler || Tone.context.state !== 'running') return 2000;
 
     const duration = 2.2;
@@ -73,32 +66,8 @@ export class AudioEngine {
       startTime,
       0.65
     );
-    
-    // Synchronize UI precisely with audio onset if callback provided
-    if (onStart) {
-      Tone.Draw.schedule(() => {
-        onStart();
-      }, startTime);
-    }
 
     return duration * 1000;
-  }
-
-  playErrorTone(): number {
-    if (Tone.context.state !== 'running') return 400;
-    
-    const startTime = Tone.now() + 0.05;
-    const osc = new Tone.Oscillator(160, "sine").toDestination();
-    
-    osc.start(startTime);
-    osc.stop(startTime + 0.4);
-    
-    // Quick amplitude envelope
-    osc.volume.setValueAtTime(-100, startTime);
-    osc.volume.linearRampToValueAtTime(-14, startTime + 0.03);
-    osc.volume.exponentialRampToValueAtTime(-100, startTime + 0.35);
-
-    return 400;
   }
 
   playSuccessTone(): number {

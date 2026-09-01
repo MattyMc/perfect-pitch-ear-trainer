@@ -1,18 +1,17 @@
-import React, { useState, useRef } from 'react';
-import { 
-  BookOpen, ChevronDown, ChevronUp, Play, ArrowLeft, 
-  CheckCircle2, AlertTriangle, HelpCircle, Sparkles, 
-  ExternalLink, Volume2, ShieldAlert, Heart, Calendar, 
-  ListMusic, Award, Compass, MessageSquare
+import { useState, useRef } from 'react';
+import {
+  BookOpen, ChevronDown, ChevronUp, Play, ArrowLeft,
+  HelpCircle, Sparkles,
+  ExternalLink, Volume2,
+  Compass, MessageSquare
 } from 'lucide-react';
-import { CHORDS, CHORDS_MAP } from '../chords';
+import { CHORDS } from '../chords';
 import { AppConfig } from '../db';
 import { audio } from '../audio';
 
 interface ParentGuideProps {
   config: AppConfig;
   todaySessionsCount: number;
-  recentAccuracy: number;
   onBack: () => void;
   onStartPractice: () => void;
   initialSection?: string;
@@ -21,7 +20,6 @@ interface ParentGuideProps {
 export default function ParentGuide({
   config,
   todaySessionsCount,
-  recentAccuracy,
   onBack,
   onStartPractice,
   initialSection = 'quickstart'

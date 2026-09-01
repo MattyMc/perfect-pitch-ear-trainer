@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { CHORDS, CHORDS_MAP } from '../chords';
 import { audio } from '../audio';
 import { 
-  BarChart2, Settings, Download, BookOpen, 
-  HelpCircle, ArrowLeft, CheckCircle2, XCircle, 
-  Sparkles, RefreshCw, AlertCircle, Play, Info, Volume2
+  BarChart2, Settings, Download, BookOpen,
+  HelpCircle, ArrowLeft, CheckCircle2, XCircle,
+  Sparkles, RefreshCw, Info, Volume2
 } from 'lucide-react';
 import ParentGuide from './ParentGuide';
 
@@ -113,8 +113,6 @@ export default function ParentDashboard({ onExit, onStartPractice }: ParentDashb
   const totalTrials = recentTrials?.length || 0;
   const correctTrials = recentTrials?.filter(t => t.firstAnswerCorrect).length || 0;
   const accuracy = totalTrials > 0 ? Math.round((correctTrials / totalTrials) * 100) : 0;
-  const replayTotal = recentTrials?.reduce((acc, t) => acc + (t.replayCount || 0), 0) || 0;
-  const replayRate = totalTrials > 0 ? Math.round((replayTotal / totalTrials) * 100) : 0;
 
   // Days at current level
   const levelStart = config.currentLevelStartedAtUtc || Date.now();
@@ -123,14 +121,12 @@ export default function ParentDashboard({ onExit, onStartPractice }: ParentDashb
   // Advancement requirements evaluation
   const has14Days = daysAtLevel >= 14;
   const hasHighAccuracy = totalTrials >= 100 && accuracy >= 95;
-  const isEligibleToAdvance = has14Days && hasHighAccuracy && config.activeChordIds.length < 14;
 
   if (subView === 'guide') {
     return (
       <ParentGuide 
         config={config}
         todaySessionsCount={todaySessionsCount}
-        recentAccuracy={accuracy}
         onBack={() => setSubView('dashboard')}
         onStartPractice={onStartPractice}
         initialSection={guideSection}

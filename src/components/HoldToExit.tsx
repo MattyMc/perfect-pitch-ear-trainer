@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { DoorOpen } from 'lucide-react';
 
 export default function HoldToExit({ onExit }: { onExit: () => void }) {

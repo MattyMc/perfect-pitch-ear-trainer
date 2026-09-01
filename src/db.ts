@@ -1,12 +1,8 @@
 import Dexie, { Table } from 'dexie';
 
-export type Phase = 'A' | 'B';
-
 export interface ChordDefinition {
   id: string;
   order: number;
-  phase: Phase;
-  pitchClasses: string[];
   notesWithOctave: string;
   inversionDescription: string;
   midiNotes: number[];

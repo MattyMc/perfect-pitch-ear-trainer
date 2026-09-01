@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Ear, RotateCw, Check } from 'lucide-react';
 import { CHORDS_MAP } from '../chords';
 import { audio } from '../audio';
@@ -83,7 +83,7 @@ export default function Practice({ activeChordIds, trialsPerSession, onExit }: P
       
       setTimeout(() => {
         if (isMountedRef.current) {
-          startTrial(seq[0], 0, sid);
+          startTrial(seq[0], sid);
         }
       }, 400);
     }
@@ -111,7 +111,7 @@ export default function Practice({ activeChordIds, trialsPerSession, onExit }: P
   const currentChordId = sequence[currentIndex];
   const currentChord = currentChordId ? CHORDS_MAP.get(currentChordId) : null;
 
-  const startTrial = async (chordId: string, idx: number, sid = sessionId) => {
+  const startTrial = async (chordId: string, sid = sessionId) => {
     if (!isMountedRef.current) return;
     
     setTrialState('Playing');
@@ -239,7 +239,7 @@ export default function Practice({ activeChordIds, trialsPerSession, onExit }: P
       if (!isMountedRef.current) return;
 
       updateActivity();
-      startTrial(sequence[nextIdx], nextIdx);
+      startTrial(sequence[nextIdx]);
     }
   };
 
@@ -332,7 +332,7 @@ export default function Practice({ activeChordIds, trialsPerSession, onExit }: P
         <button 
           onClick={() => {
             if (!isMountedRef.current) return;
-            startTrial(sequence[currentIndex], currentIndex, sessionId);
+            startTrial(sequence[currentIndex], sessionId);
           }}
           className="px-12 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-full text-2xl font-bold shadow-lg active:scale-95 transition-transform"
         >
@@ -495,7 +495,7 @@ export default function Practice({ activeChordIds, trialsPerSession, onExit }: P
           let bgColor = "bg-slate-200"; // unfilled
           if (i < trialResults.length) {
             bgColor = trialResults[i] ? "bg-emerald-400" : "bg-rose-400";
-          } else if (i === currentIndex && trialState !== 'Done') {
+          } else if (i === currentIndex) {
             bgColor = "bg-slate-300 animate-pulse";
           }
           return (
