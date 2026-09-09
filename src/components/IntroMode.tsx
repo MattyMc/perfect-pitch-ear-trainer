@@ -4,6 +4,7 @@ import { audio } from '../audio';
 import { Check, Ear } from 'lucide-react';
 import { db } from '../db';
 import HoldToExit from './HoldToExit';
+import { newId } from '../utils/id';
 
 export default function IntroMode({ chordId, onExit }: { chordId: string, onExit: () => void }) {
   const [step, setStep] = useState(0);
@@ -15,7 +16,7 @@ export default function IntroMode({ chordId, onExit }: { chordId: string, onExit
 
   useEffect(() => {
     isMountedRef.current = true;
-    const sid = crypto.randomUUID();
+    const sid = newId();
     setSessionId(sid);
     
     db.sessions.add({

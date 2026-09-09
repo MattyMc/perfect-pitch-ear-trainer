@@ -4,6 +4,7 @@ import { CHORDS_MAP } from '../chords';
 import { audio } from '../audio';
 import { db, checkAndCloseStaleSessions, getResumeableSession, endSession } from '../db';
 import { generateSessionSequence } from '../utils/scheduler';
+import { newId } from '../utils/id';
 import HoldToExit from './HoldToExit';
 import PracticeDone from './PracticeDone';
 
@@ -27,7 +28,7 @@ export default function Practice({ activeChordIds, trialsPerSession, onExit }: P
   const [correctionTaps, setCorrectionTaps] = useState(0);
   const [trialResults, setTrialResults] = useState<boolean[]>([]);
   const [audioError, setAudioError] = useState<string | null>(null);
-  const [currentTrialId, setCurrentTrialId] = useState<string>(crypto.randomUUID());
+  const [currentTrialId, setCurrentTrialId] = useState<string>(newId());
 
   const isMountedRef = useRef(true);
   const isProcessingRef = useRef(false);
@@ -62,7 +63,7 @@ export default function Practice({ activeChordIds, trialsPerSession, onExit }: P
         }
       }
 
-      const sid = crypto.randomUUID();
+      const sid = newId();
       setSessionId(sid);
       const seq = generateSessionSequence(activeChordIds, trialsPerSession);
       setSequence(seq);
@@ -232,7 +233,7 @@ export default function Practice({ activeChordIds, trialsPerSession, onExit }: P
       setReplayCount(0);
       setFirstAnswerId(null);
       setCorrectionTaps(0);
-      setCurrentTrialId(crypto.randomUUID());
+      setCurrentTrialId(newId());
 
       // Brief silent pause before presenting next stimulus
       await new Promise(r => setTimeout(r, 350));
