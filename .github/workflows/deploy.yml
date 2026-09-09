@@ -23,9 +23,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # Reads .nvmrc (20.11.1). Node 18 fails here with a misleading
-          # "Cannot find native binding" from @tailwindcss/oxide, which
-          # requires Node >= 20.
+          # Reads .nvmrc (24.11.0). Too old a Node fails here with a misleading
+          # "Cannot find native binding" — npm skips a platform binary whose
+          # engines it cannot satisfy. See engines.node in package.json.
           node-version-file: .nvmrc
           cache: npm
 

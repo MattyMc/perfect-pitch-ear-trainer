@@ -13,7 +13,9 @@ npm run lint     # tsc --noEmit — this is the only check in the project
 
 **The app is served under a path prefix, not at the domain root.** `vite.config.ts` sets `base: '/perfect-pitch-ear-trainer/'` for GitHub Pages, and that applies in dev and preview too — so the dev URL is `http://localhost:3001/perfect-pitch-ear-trainer/`, not `http://localhost:3001/`. The base is set unconditionally on purpose: making it conditional would leave `vite preview` disagreeing with the path prefix already baked into the built HTML.
 
-**Node 20+ is required** (`.nvmrc` pins 20.11.1; `engines` declares `>=20`). This is not optional: `@tailwindcss/oxide` declares `node >= 20`, so on Node 18 npm silently skips its platform binary and every Vite command dies with `Cannot find native binding` — a message that misleadingly blames [an npm optional-dependency bug](https://github.com/npm/cli/issues/4828). If you hit that, check `node --version` before deleting lockfiles. `nvm use` picks up the `.nvmrc`.
+**Node 22.12+ is required** (`.nvmrc` pins 24.11.0; `engines` declares `>=22.12.0`). `nvm use` picks up the `.nvmrc`. The floor comes from `@vitejs/plugin-react`, which declares `^20.19.0 || >=22.12.0`; `@tailwindcss/oxide` separately needs `>= 20`.
+
+This is not cosmetic. When npm decides your Node is too old for a package, it silently skips that package's platform binary, and every Vite command then dies with `Cannot find native binding` — a message that misleadingly blames [an npm optional-dependency bug](https://github.com/npm/cli/issues/4828). **If you hit that, check `node --version` before deleting lockfiles**, which is the advice the error itself gives and which will not help.
 
 Port 3001 is deliberate — 3000 is taken by a Rails app in this developer's setup.
 
