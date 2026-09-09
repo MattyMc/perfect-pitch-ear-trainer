@@ -5,11 +5,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev      # Vite dev server on port 3001, bound to 0.0.0.0 (for testing on a phone/tablet on the LAN)
+npm run dev      # Vite dev server on port 3001, bound to 0.0.0.0
 npm run build    # Production build to dist/
-npm run preview  # Serve the built dist/
+npm run preview  # Serve the built dist/ (port 4173)
 npm run lint     # tsc --noEmit — this is the only check in the project
 ```
+
+**The app is served under a path prefix, not at the domain root.** `vite.config.ts` sets `base: '/perfect-pitch-ear-trainer/'` for GitHub Pages, and that applies in dev and preview too — so the dev URL is `http://localhost:3001/perfect-pitch-ear-trainer/`, not `http://localhost:3001/`. The base is set unconditionally on purpose: making it conditional would leave `vite preview` disagreeing with the path prefix already baked into the built HTML.
 
 **Node 20+ is required** (`.nvmrc` pins 20.11.1; `engines` declares `>=20`). This is not optional: `@tailwindcss/oxide` declares `node >= 20`, so on Node 18 npm silently skips its platform binary and every Vite command dies with `Cannot find native binding` — a message that misleadingly blames [an npm optional-dependency bug](https://github.com/npm/cli/issues/4828). If you hit that, check `node --version` before deleting lockfiles. `nvm use` picks up the `.nvmrc`.
 
@@ -20,6 +22,23 @@ There is no test framework, no ESLint, and no CI. `npm run lint` (a bare TypeScr
 `strict` is on and the codebase passes it with zero errors — keep it that way rather than reaching for `any` or `!`. Note that `@types/react` was missing from this project for a while, which silently typed every hook and JSX element as `any`; if type errors ever vanish en masse, suspect the React types before believing the code got safer.
 
 The app is a phone-first PWA and is portrait-locked — `RotateDeviceOverlay` blanks the screen in landscape, so browser testing needs a narrow viewport.
+
+## Deployment
+
+Pushing to `main` builds and publishes to GitHub Pages via `.github/workflows/deploy.yml` (Node from `.nvmrc`, `npm ci` → `npm run lint` → `npm run build` → `dist/`). One-time repo setting: **Settings → Pages → Source: GitHub Actions**. Live at `https://mattymc.github.io/perfect-pitch-ear-trainer/`.
+
+**Never hardcode a root-absolute asset path.** Because the site is served from a subpath, a literal like `"/audio/piano/"` 404s in production. Vite rewrites absolute URLs it can see in `index.html`, but *only* when the target actually exists in `public/` — and it never rewrites string literals inside `.ts`/`.tsx`, nor the contents of files copied verbatim from `public/`. So:
+
+- In source, build asset URLs from `import.meta.env.BASE_URL` (always has a trailing slash). See `src/audio.ts`.
+- In `public/manifest.json`, use **relative** paths (`"start_url": "."`, `"src": "icon-192.png"`). Manifest members resolve against the manifest's own URL, so relative values are correct in dev *and* production, whereas a hardcoded `/perfect-pitch-ear-trainer/…` would break `npm run dev`.
+
+`src/vite-env.d.ts` exists solely to make `import.meta.env` type-check; without it `tsc` fails with "Property 'env' does not exist on type 'ImportMeta'".
+
+**Icons are generated, not hand-drawn.** `node scripts/generate-icons.mjs` rewrites `public/icon-192.png` and `public/icon-512.png` from geometry authored in a 512-unit square (no dependencies — it encodes the PNGs itself). Edit the geometry there rather than the binaries. The mark is deliberately full-bleed: margin is what starves the thin elements at favicon sizes. When judging a change there, weigh contrast and not just width — the yellow strip between the dark keys is only 1.81px at 16px yet reads fine at 13.6:1, while a 4px blue-against-green seam at 1.61:1 fused into one shape and had to be designed out. `index.html` points the tab icon at the 192, not the 512, so browsers aren't downscaling a 512px drawing to 16px.
+
+`crypto.randomUUID()` is secure-context-only, so it is absent over plain HTTP on a LAN address (localhost is exempt). `src/utils/id.ts` wraps it with a fallback — use `newId()` rather than calling `crypto.randomUUID()` directly, otherwise the practice screen throws when the dev server is opened from a phone at `http://192.168.x.x:3001/…`.
+
+There is no service worker, so the app does not work offline.
 
 ## What this app is
 
@@ -55,11 +74,11 @@ Schema changes require a new `this.version(n).stores({...})` block — v1's decl
 
 **Invariant:** `config.activeChordIds` is always a *prefix* of `CHORDS` in array order. `ParentDashboard.addChord()` appends `CHORDS[activeChordIds.length]` and `removeLastChord()` slices the last one off. Reordering `CHORDS` therefore silently rewrites what every existing learner is practising — append new chords, don't reorder.
 
-Advancement is never automatic. The dashboard shows a checklist (≥14 days at level, ≥95% over the last 100 trials, parent approval) but the "Introduce Next Chord" button is always enabled; the criteria are advisory. `currentLevelStartedAtUtc` resets on every add or remove.
+Advancement is never automatic. The dashboard shows a checklist (≥14 days at level, ≥95% over the last 100 trials, parent approval) but the "Introduce Next Chord" button is never gated on it — the criteria are purely advisory. Its only `disabled` condition is having introduced all 14 chords. `currentLevelStartedAtUtc` resets on every add or remove.
 
 ### Audio (`src/audio.ts`)
 
-A module-level singleton `audio` (`new AudioEngine()`). Its constructor attaches one-shot `click`/`touchstart`/`pointerdown`/`keydown` listeners to `window` so the AudioContext unlocks on the first user gesture anywhere; components still `await audio.init()` before playing, which is idempotent.
+A module-level singleton `audio` (`new AudioEngine()`). Its constructor attaches `click`/`touchstart`/`touchend`/`pointerdown`/`keydown` listeners to `window` so the AudioContext unlocks on the first user gesture anywhere. They are not `{ once: true }` — they stay attached and re-enter `init()` on every later gesture, which is harmless because `init()` no-ops once the sampler exists. Components still `await audio.init()` before playing.
 
 Playback is a `Tone.Sampler` over **7 Salamander Grand Piano samples** (`public/audio/piano/`, A3/C4/D♯4/F♯4/A4/C5/D♯5). Every other pitch is interpolated by Tone from those. Feedback sounds are synthesised `Tone.Oscillator` chirps, and correction prompts use the Web Speech API (`audio.speak`, which resolves on `onend` or a word-count-estimated fallback timer, since browsers routinely drop `onend`).
 
@@ -67,7 +86,7 @@ Playback is a `Tone.Sampler` over **7 Salamander Grand Piano samples** (`public/
 
 ### The trial loop (`src/components/Practice.tsx`)
 
-The core of the app. A `TrialState` union (`Initializing` → `Playing` → `Awaiting` → `Correct`/`Correcting` → `PlayingCorrection` → `CorrectionTap` → `Done`) drives both the UI and input locking. Input is accepted only in `Awaiting` and `CorrectionTap`.
+The core of the app. A ten-member `TrialState` union drives both the UI and input locking: `Initializing`, `NeedsResumeTap`, `Ready`, `Playing`, `Awaiting`, `Correct`, `Correcting`, `PlayingCorrection`, `CorrectionTap`, `Done`. The usual path is `Playing` → `Awaiting` → `Correct` (or `Correcting` → `PlayingCorrection` → `CorrectionTap`) → `Ready` → next trial. Input is accepted only in `Awaiting` and `CorrectionTap`. Note `Ready` is assigned but never compared against — it is a transient state during the inter-trial pause, rendering nothing.
 
 Two refs guard the long `async` chains, and both matter: `isMountedRef` (bailing out after every `await` — React StrictMode double-mounts this component in dev) and `isProcessingRef` (a synchronous re-entry lock that `setState` cannot provide, since taps can land between awaits).
 
@@ -84,7 +103,6 @@ These are live in the code — check before "fixing", and be aware they interact
 - `db.ts` `endSession()` and `checkAndCloseStaleSessions()` hardcode `scoredTrialCount === 25` for `'completed'`. With `trialsPerSession: 20` a fully finished session that exits via those paths is classified `'completed_short'`. The normal completion path in `Practice.saveTrial()` sets `'completed'` directly and is unaffected.
 - `db.on('ready')` seeds `trialsPerSession: 25`; `ParentDashboard.resetData()` re-seeds it as `20`.
 - `animate-fadeIn` (`FirstRunOnboarding`) and `animate-spin-slow` (`RotateDeviceOverlay`) are used but never defined — `src/index.css` is only `@import "tailwindcss"` with no `@theme` or `@keyframes` block.
-- `public/manifest.json` references `/icon-192.png` and `/icon-512.png`, which do not exist.
 - `FirstRunOnboarding` can finish with `'quickstart'` or `'guide'`, but `App.tsx` collapses both to the parent view; nothing deep-links into a guide section from onboarding.
 
 ## Provenance and stack notes
