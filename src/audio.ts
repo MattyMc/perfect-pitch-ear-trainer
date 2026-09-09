@@ -34,7 +34,10 @@ export class AudioEngine {
             C5: "C5.mp3",
             "D#5": "Ds5.mp3"
           },
-          baseUrl: "/audio/piano/",
+          // BASE_URL is whatever `base` is set to in vite.config.ts, always with a trailing
+          // slash — and since that base is unconditional, it is the same subpath in dev,
+          // preview and production. A hardcoded "/audio/piano/" 404s on GitHub Pages.
+          baseUrl: `${import.meta.env.BASE_URL}audio/piano/`,
           attack: 0,
           release: 0.15,
         }).toDestination();
