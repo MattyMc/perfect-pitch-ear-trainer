@@ -1,38 +1,46 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../db';
+import {
+  db, Profile, AppConfig, completedSessionsTodayQuery, recentTrialsQuery,
+  createProfile, setActiveProfile, updateProfile, deleteProfile, resetProfileData, setOnboardingCompleted,
+  suggestProfileColour,
+} from '../db';
 import { CHORDS, CHORDS_MAP } from '../chords';
 import { audio } from '../audio';
 import { 
   BarChart2, Settings, Download, BookOpen,
   HelpCircle, ArrowLeft, CheckCircle2, XCircle,
-  Sparkles, RefreshCw, Info, Volume2
+  Sparkles, RefreshCw, Info, Volume2,
+  Users, Pencil, Trash2, Plus, Check
 } from 'lucide-react';
 import ParentGuide from './ParentGuide';
+import ProfileForm from './ProfileForm';
+import ProfileDot from './ProfileDot';
+
+const secondaryButtonClass = 'w-full py-3 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 flex items-center justify-center space-x-2 rounded-xl font-bold text-xs transition-colors';
+const inlineFormClass = 'p-3.5 bg-slate-50 rounded-xl border border-slate-200/80';
 
 interface ParentDashboardProps {
+  profile: Profile;
+  /** The active profile's config, from App's single snapshot — not re-queried here. */
+  config: AppConfig;
+  profiles: Profile[];
   onExit: () => void;
   onStartPractice: () => void;
 }
 
-export default function ParentDashboard({ onExit, onStartPractice }: ParentDashboardProps) {
+export default function ParentDashboard({ profile, config, profiles, onExit, onStartPractice }: ParentDashboardProps) {
   const [subView, setSubView] = useState<'dashboard' | 'guide'>('dashboard');
   const [guideSection, setGuideSection] = useState<string>('quickstart');
   const [isPlayingTest, setIsPlayingTest] = useState(false);
+  // At most one profile form is open at a time: adding, or renaming one profile.
+  const [editing, setEditing] = useState<'add' | { rename: string } | null>(null);
 
-  const config = useLiveQuery(() => db.config.get('config'));
-  const recentTrials = useLiveQuery(() => db.trials.orderBy('completedAtUtc').reverse().limit(100).toArray());
+  const profileId = profile.id;
+  const recentTrials = useLiveQuery(() => recentTrialsQuery(profileId), [profileId]);
 
   // Calculate today's completed sessions
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const todaySessions = useLiveQuery(() => 
-    db.sessions
-      .where('startedAt')
-      .aboveOrEqual(startOfToday.getTime())
-      .filter(s => s.status === 'completed' || s.status === 'completed_short')
-      .toArray()
-  );
+  const todaySessions = useLiveQuery(() => completedSessionsTodayQuery(profileId), [profileId]);
 
   const todaySessionsCount = todaySessions?.length || 0;
 
@@ -42,11 +50,10 @@ export default function ParentDashboard({ onExit, onStartPractice }: ParentDashb
   };
 
   const addChord = async () => {
-    if (!config) return;
     const allChordIds = CHORDS.map(c => c.id);
     if (config.activeChordIds.length < allChordIds.length) {
       const nextChord = allChordIds[config.activeChordIds.length];
-      await db.config.update('config', {
+      await db.config.update(profileId, {
         activeChordIds: [...config.activeChordIds, nextChord],
         currentLevelStartedAtUtc: Date.now()
       });
@@ -54,10 +61,10 @@ export default function ParentDashboard({ onExit, onStartPractice }: ParentDashb
   };
 
   const removeLastChord = async () => {
-    if (!config || config.activeChordIds.length <= 1) return;
+    if (config.activeChordIds.length <= 1) return;
     if (window.confirm("Step back one chord? This will reduce the active chord pool.")) {
       const newActive = config.activeChordIds.slice(0, -1);
-      await db.config.update('config', {
+      await db.config.update(profileId, {
         activeChordIds: newActive,
         currentLevelStartedAtUtc: Date.now()
       });
@@ -65,50 +72,54 @@ export default function ParentDashboard({ onExit, onStartPractice }: ParentDashb
   };
 
   const setTrialsCount = async (count: number) => {
-    await db.config.update('config', { trialsPerSession: count });
+    await db.config.update(profileId, { trialsPerSession: count });
   };
 
   const resetData = async () => {
-    if (window.confirm("Are you sure you want to delete all practice history? This cannot be undone.")) {
-       await db.sessions.clear();
-       await db.trials.clear();
-       await db.config.put({
-         id: 'config',
-         activeChordIds: ['red'],
-         trialsPerSession: 20,
-         hasCompletedOnboarding: false,
-         currentLevelStartedAtUtc: Date.now()
-       });
+    if (window.confirm(`Delete all of ${profile.name}'s practice history and start again from Red? This cannot be undone.`)) {
+       await resetProfileData(profileId);
        onExit();
     }
   };
 
   const restartOnboarding = async () => {
-    await db.config.update('config', { hasCompletedOnboarding: false });
+    await setOnboardingCompleted(false);
     onExit();
   };
 
   const exportData = async () => {
-    const sessions = await db.sessions.toArray();
-    const trials = await db.trials.toArray();
-    const c = await db.config.get('config');
+    const [sessions, trials] = await db.transaction('r', db.sessions, db.trials, () => Promise.all([
+      db.sessions.where('profileId').equals(profileId).toArray(),
+      db.trials.where('profileId').equals(profileId).toArray(),
+    ]));
     const data = {
-      schema_version: 1,
+      schema_version: 2,
       exported_at_utc: Date.now(),
-      config: c,
+      profile,
+      config,
       sessions,
       trials,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
+    // Names with no ASCII letters (e.g. 李明) would otherwise all collapse to one filename.
+    const slug = profile.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || profile.id.slice(0, 8);
     a.href = url;
-    a.download = `eguchi-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `eguchi-backup-${slug}-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  if (!config) return <div className="p-8 text-center text-slate-500">Loading...</div>;
+
+  const handleDelete = async (p: Profile) => {
+    if (window.confirm(`Delete ${p.name} and all of their practice history? This cannot be undone.`)) {
+      // Leave first when deleting the active child, so the dashboard never renders a frame
+      // of the sibling's data (App's snapshot flips the active profile as the delete commits).
+      if (p.id === profileId) onExit();
+      await deleteProfile(p.id);
+    }
+  };
 
   const totalTrials = recentTrials?.length || 0;
   const correctTrials = recentTrials?.filter(t => t.firstAnswerCorrect).length || 0;
@@ -375,25 +386,119 @@ export default function ParentDashboard({ onExit, onStartPractice }: ParentDashb
           </div>
         </section>
 
+        {/* Profiles */}
+        <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 space-y-3">
+          <div className="flex items-center space-x-2 text-slate-800">
+            <Users className="w-5 h-5 text-blue-600" />
+            <h2 className="text-base font-bold">Profiles</h2>
+          </div>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Each profile has its own chords, history, and progress. Everything above describes <strong>{profile.name}</strong>. Switching here changes who the home screen practices as.
+          </p>
+
+          <div className="space-y-2">
+            {profiles.map((p) => {
+              const isActive = p.id === profileId;
+              if (typeof editing === 'object' && editing?.rename === p.id) {
+                return (
+                  <div key={p.id} className={inlineFormClass}>
+                    <ProfileForm
+                      tone="light"
+                      submitLabel="Save"
+                      initialName={p.name}
+                      initialColor={p.colorHex}
+                      showPrivacyNotice={false}
+                      onSubmit={async (name, colorHex) => {
+                        await updateProfile(p.id, name, colorHex);
+                        setEditing(null);
+                      }}
+                      onCancel={() => setEditing(null)}
+                    />
+                  </div>
+                );
+              }
+              return (
+                <div
+                  key={p.id}
+                  className={`flex items-center justify-between p-3 rounded-xl border ${
+                    isActive ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-100'
+                  }`}
+                >
+                  <button
+                    onClick={() => { if (!isActive) setActiveProfile(p.id); }}
+                    className="flex items-center space-x-2 min-w-0 flex-1 text-left"
+                    aria-label={isActive ? `${p.name} (active)` : `Switch to ${p.name}`}
+                  >
+                    <ProfileDot colorHex={p.colorHex} className={`w-5 h-5 text-white ${isActive ? '' : 'opacity-60'}`}>
+                      {isActive && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+                    </ProfileDot>
+                    <span className={`text-sm font-bold truncate ${isActive ? 'text-blue-950' : 'text-slate-700'}`}>{p.name}</span>
+                    {isActive && <span className="text-[10px] font-semibold text-blue-600 shrink-0">Active</span>}
+                  </button>
+                  <div className="flex items-center space-x-1 shrink-0 ml-2">
+                    <button
+                      onClick={() => setEditing({ rename: p.id })}
+                      className="p-2 rounded-lg text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition-colors"
+                      aria-label={`Rename ${p.name}`}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(p)}
+                      className="p-2 rounded-lg text-slate-500 hover:bg-rose-100 hover:text-rose-700 transition-colors"
+                      aria-label={`Delete ${p.name}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {editing === 'add' ? (
+            <div className={inlineFormClass}>
+              <ProfileForm
+                tone="light"
+                submitLabel="Add & switch"
+                initialColor={suggestProfileColour(profiles)}
+                onSubmit={async (name, colorHex) => {
+                  await createProfile(name, colorHex);
+                  setEditing(null);
+                }}
+                onCancel={() => setEditing(null)}
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => setEditing('add')}
+              className={secondaryButtonClass}
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add another profile</span>
+            </button>
+          )}
+        </section>
+
         {/* Data & System Options */}
         <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 space-y-3">
           <h2 className="text-base font-bold text-slate-800">Data & Guide Access</h2>
           <p className="text-xs text-slate-500 leading-relaxed">
-            All practice history is stored locally in your browser's private database. Export regular backups to prevent accidental data loss.
+            {profile.name}'s practice history is stored locally in your browser's private database and never leaves this device. Export regular backups to prevent accidental data loss.
           </p>
 
           <div className="space-y-2 pt-1">
             <button
               onClick={exportData}
-              className="w-full py-3 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 flex items-center justify-center space-x-2 rounded-xl font-bold text-xs transition-colors"
+              className={secondaryButtonClass}
             >
               <Download className="w-4 h-4" />
-              <span>Export Backup (JSON)</span>
+              <span>Export {profile.name}'s Backup (JSON)</span>
             </button>
 
             <button
               onClick={restartOnboarding}
-              className="w-full py-3 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 flex items-center justify-center space-x-2 rounded-xl font-bold text-xs transition-colors"
+              className={secondaryButtonClass}
             >
               <RefreshCw className="w-4 h-4" />
               <span>Replay Onboarding Screens</span>
@@ -403,7 +508,7 @@ export default function ParentDashboard({ onExit, onStartPractice }: ParentDashb
               onClick={resetData}
               className="w-full py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl font-bold text-xs transition-colors"
             >
-              Reset All Practice Data
+              Reset {profile.name}'s Practice Data
             </button>
           </div>
         </section>

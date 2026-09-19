@@ -2,13 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { Ear, RotateCw, Check } from 'lucide-react';
 import { CHORDS_MAP } from '../chords';
 import { audio } from '../audio';
-import { db, checkAndCloseStaleSessions, getResumeableSession, endSession } from '../db';
+import { db, checkAndCloseStaleSessions, getResumeableSession, endSession, recordTrial } from '../db';
 import { generateSessionSequence } from '../utils/scheduler';
 import { newId } from '../utils/id';
 import HoldToExit from './HoldToExit';
 import PracticeDone from './PracticeDone';
 
 interface PracticeProps {
+  profileId: string;
   activeChordIds: string[];
   trialsPerSession: number;
   onExit: () => void;
@@ -16,7 +17,7 @@ interface PracticeProps {
 
 type TrialState = 'Initializing' | 'NeedsResumeTap' | 'Ready' | 'Playing' | 'Awaiting' | 'Correct' | 'Correcting' | 'PlayingCorrection' | 'CorrectionTap' | 'Done';
 
-export default function Practice({ activeChordIds, trialsPerSession, onExit }: PracticeProps) {
+export default function Practice({ profileId, activeChordIds, trialsPerSession, onExit }: PracticeProps) {
   const [sequence, setSequence] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [trialState, setTrialState] = useState<TrialState>('Initializing');
@@ -41,7 +42,7 @@ export default function Practice({ activeChordIds, trialsPerSession, onExit }: P
     async function initSession() {
       if (isScoredSession) {
         await checkAndCloseStaleSessions();
-        const active = await getResumeableSession();
+        const active = await getResumeableSession(profileId);
         if (!isMountedRef.current) return;
 
         if (active) {
@@ -71,6 +72,7 @@ export default function Practice({ activeChordIds, trialsPerSession, onExit }: P
       if (isScoredSession) {
         await db.sessions.add({
           id: sid,
+          profileId,
           startedAt: Date.now(),
           lastActivityAt: Date.now(),
           endedAt: null,
@@ -172,8 +174,13 @@ export default function Practice({ activeChordIds, trialsPerSession, onExit }: P
     }
   };
 
-  const saveTrial = async (correct: boolean, firstAns: string | null, isComplete = true) => {
-    if (!currentChordId) return;
+  /**
+   * Persists the trial. Resolves false when the session row has gone (the parent reset or
+   * deleted this profile from another tab), in which case nothing was written and the caller
+   * should leave.
+   */
+  const saveTrial = async (correct: boolean, firstAns: string | null, isComplete = true): Promise<boolean> => {
+    if (!currentChordId) return true;
 
     if (isComplete && !trialResults[currentIndex]) {
        // Only add to results array when fully completed to avoid double entry
@@ -188,8 +195,21 @@ export default function Practice({ activeChordIds, trialsPerSession, onExit }: P
     const firstAnswerGridIndex = firstAns ? activeChordIds.indexOf(firstAns) : undefined;
 
     if (isScoredSession) {
-      await db.trials.put({
+      const now = Date.now();
+      const isCompleted = isComplete && (currentIndex + 1 >= trialsPerSession);
+      const sessionPatch = isComplete
+        ? {
+            scoredTrialCount: currentIndex + 1,
+            lastActivityAt: now,
+            status: isCompleted ? 'completed' as const : 'active' as const,
+            endReason: isCompleted ? 'target_reached' as const : null,
+            endedAt: isCompleted ? now : null,
+          }
+        : { lastActivityAt: now };
+
+      const written = await recordTrial({
         id: currentTrialId,
+        profileId,
         sessionId,
         sequenceIndex: currentIndex,
         presentedChordId: currentChordId,
@@ -198,27 +218,16 @@ export default function Practice({ activeChordIds, trialsPerSession, onExit }: P
         firstAnswerChordId: firstAns,
         firstAnswerGridIndex,
         firstAnswerCorrect: correct,
-        completedAtUtc: Date.now(),
+        completedAtUtc: now,
         correctionTapCount: correctionTaps,
         correctionIncomplete: !isComplete,
-      });
-      
-      const isCompleted = isComplete && (currentIndex + 1 >= trialsPerSession);
-      if (isComplete) {
-        await db.sessions.update(sessionId, {
-          scoredTrialCount: currentIndex + 1,
-          lastActivityAt: Date.now(),
-          status: isCompleted ? 'completed' : 'active',
-          endReason: isCompleted ? 'target_reached' : null,
-          endedAt: isCompleted ? Date.now() : null
-        });
-      } else {
-        await db.sessions.update(sessionId, {
-          lastActivityAt: Date.now()
-        });
+      }, sessionPatch);
+      if (!written) {
+        onExit();
+        return false;
       }
     }
-    updateActivity();
+    return true;
   };
 
   const advanceTrial = async () => {
@@ -258,14 +267,14 @@ export default function Practice({ activeChordIds, trialsPerSession, onExit }: P
       if (isCorrect) {
         setTrialState('Correct');
         audio.playSuccessTone();
-        await saveTrial(true, tappedChordId, true);
+        if (!(await saveTrial(true, tappedChordId, true))) return;
         
         // Let success chime finish
         await new Promise(r => setTimeout(r, 850));
         if (!isMountedRef.current) return;
         advanceTrial();
       } else {
-        await saveTrial(false, tappedChordId, false);
+        if (!(await saveTrial(false, tappedChordId, false))) return;
         setTrialState('Correcting');
         const correctChord = CHORDS_MAP.get(currentChordId)!;
         
@@ -290,7 +299,7 @@ export default function Practice({ activeChordIds, trialsPerSession, onExit }: P
       if (tappedChordId === currentChordId) {
         setTrialState('Correct');
         audio.playSuccessTone();
-        await saveTrial(false, firstAnswerId, true);
+        if (!(await saveTrial(false, firstAnswerId, true))) return;
 
         // Let success chime finish
         await new Promise(r => setTimeout(r, 850));

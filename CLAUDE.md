@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Product behaviour, the method, the curriculum, and every product decision with its implementation status live in `docs/` — start at `docs/README.md`. This file covers the toolchain and architecture only. `docs/known-issues.md` is the canonical list of confirmed bugs and supersedes the shorter list at the bottom of this file.
+
 ## Commands
 
 ```bash
@@ -50,10 +52,14 @@ A trainer for the Eguchi absolute-pitch method: a child hears a fixed piano chor
 
 ### View routing
 
-There is no router. `src/App.tsx` holds a single `view` state of `'home' | 'practice' | 'parent'` and switches on it. Two gates sit in front of that:
+There is no router. `src/App.tsx` holds a single `view` state of `'home' | 'practice' | 'parent' | 'profiles'` and switches on it. Gates sit in front of that, in this order:
 
-- `config.hasCompletedOnboarding === false` short-circuits everything into `FirstRunOnboarding`.
-- `view === 'parent'` renders `ParentDashboard` wrapped in `ParentGate` (a 1-second press-and-hold; no PIN). `ParentDashboard` has its own `subView` for the long-form `ParentGuide`.
+- No profiles at all → `ProfileCreateScreen` (name plus the privacy notice). This precedes onboarding on a fresh install.
+- Profiles exist but none is active (or `view === 'profiles'`) → `ProfileSwitcher`, a full-screen picker that can also add a child.
+- `meta.hasCompletedOnboarding === false` → `FirstRunOnboarding`. Onboarding is parent education, so it is **once per device**, not per child; adding a second child never re-triggers it. It runs after the profile gates so the copy can use the child's name.
+- `view === 'parent'` renders `ParentDashboard` wrapped in `ParentGate` (a 1-second press-and-hold; no PIN). `ParentDashboard` has its own `subView` for the long-form `ParentGuide`, and a Profiles section for switch/rename/add/delete.
+
+`App` reads profiles, the meta row, and the active profile's config in **one** `useLiveQuery` snapshot inside a single Dexie read transaction, on purpose, and passes `config` down to `ParentDashboard` rather than letting it re-query. Separate queries produced a transitional frame on every switch, which unmounted the tree (re-locking `ParentGate`, losing scroll position) and briefly paired one profile with another's config. The practice view is stored as `{ practice: profileId }` and renders only while that profile is still active, so a switch from another tab drops to the home screen instead of remounting a session for the sibling. `App` holds no error handling: the querier throws if an invariant fails (no meta row, a profile without config), a failed database open rejects it too, and in both cases `useLiveQuery` rethrows during render into `AppErrorBoundary` (`main.tsx`), which renders `DatabaseErrorScreen`. Without that boundary a failed open blanks the page.
 
 The `'practice'` view forks on chord count, which is the single most important branch in the app:
 
@@ -62,19 +68,23 @@ The `'practice'` view forks on chord count, which is the single most important b
 
 ### Persistence (`src/db.ts`)
 
-Dexie/IndexedDB (`EguchiDB`), three tables, read everywhere through `useLiveQuery` from `dexie-react-hooks`. There is no other state container — no Redux, no context, no prop-drilled data. Components query Dexie directly and re-render on write.
+Dexie/IndexedDB (`EguchiDB`), five tables, read everywhere through `useLiveQuery` from `dexie-react-hooks`. There is no other state container — no Redux, no context, no `localStorage`. Components query Dexie directly and re-render on write. The only thing passed down as a prop is the active `profileId` (or `Profile`), which every query is scoped by.
 
-- `config` — a **single row with `id: 'config'`**. Seeded by a `db.on('ready')` hook if the table is empty. Holds `activeChordIds`, `trialsPerSession`, `hasCompletedOnboarding`, `currentLevelStartedAtUtc`.
-- `sessions` — one row per practice attempt, with a `status` lifecycle: `active` → `completed` | `completed_short` | `interrupted` | `discarded`.
-- `trials` — one row per presented sound. `firstAnswerCorrect` is *the* metric; everything upstream (dashboard accuracy, advancement eligibility) derives from it.
+- `profiles` — `{ id, name, colorHex, createdAtUtc }`. A name and a colour; no credentials. `colorHex` is the `ProfileColour` union type derived from `PROFILE_COLOURS` (an `as const` array), so the compiler rejects anything off the palette. The palette is deep, low-chroma tones two steps darker than the answer cards, so they read as UI ink rather than card paint. A chord's colour is its identity to the child, so the other half of the rule is role and size: a profile colour appears only as a small dot beside a name, never card-sized and never spoken. The palette was chosen on a design canvas showing the alternatives against the chord colours; if you change it, keep every swatch dark enough for a white tick at 4.5:1.
+- `meta` — a **single row with `id: 'app'`** holding `activeProfileId` and `hasCompletedOnboarding`. Device-level, not per profile. It always exists: `db.on('populate')` seeds it on a fresh database and the v3 upgrade writes it on an old one, so writers use a plain `db.meta.update()`.
+- `config` — **one row per profile, keyed by the profile's id** (`AppConfig.id === profile.id`). Holds `activeChordIds`, `trialsPerSession`, `currentLevelStartedAtUtc`. Seeded by `defaultConfig()` inside `createProfile()`; there is no `db.on('ready')` seed any more.
+- `sessions` — one row per practice attempt, carrying `profileId`, with a `status` lifecycle: `active` → `completed` | `completed_short` | `interrupted` | `discarded`. `IntroMode` is the exception: it writes its row once, already `completed`, when the three taps finish, so an intro row is never `active` and an abandoned intro leaves no row.
+- `trials` — one row per presented sound, carrying `profileId`. `firstAnswerCorrect` is *the* metric; everything upstream (dashboard accuracy, advancement eligibility) derives from it.
 
-Schema changes require a new `this.version(n).stores({...})` block — v1's declared indexes (`startedAtUtc`, `completed`) did not match the interface and v2 corrects them to `startedAt, status`. Queries use `.where('startedAt')`.
+Scoped queries go through the compound indexes `[profileId+startedAt]`, `[profileId+status]`, and `[profileId+completedAtUtc]`; `completedSessionsTodayQuery`, `recentTrialsQuery`, and `getResumeableSession` in `db.ts` take a `profileId`. `checkAndCloseStaleSessions` is deliberately **unscoped** (one `modify` over the `status` index) so another child's abandoned session is not left `active` for weeks. `Practice` persists each trial through `recordTrial`, one transaction that updates the session row and only then writes the trial; it resolves `false` when the session row is gone (the parent reset or deleted the profile from another tab) and `Practice` exits instead of writing orphan trials that would still count toward accuracy. Profile lifecycle is `createProfile` / `updateProfile` (name and colour) / `deleteProfile` / `resetProfileData` / `setActiveProfile`, all in `db.ts`; the destructive ones are Dexie transactions.
+
+Schema changes require a new `this.version(n).stores({...})` block — v1's declared indexes (`startedAtUtc`, `completed`) did not match the interface and v2 corrects them to `startedAt, status`. **v3 adds profiles and carries an `upgrade()` migration**: a pre-profile install with any evidence of use (onboarding completed, more than one chord, or any session) is folded into one profile named `LEGACY_PROFILE_NAME` ("My child"), its `'config'` row re-keyed to that profile's id (with the old `hasCompletedOnboarding` moved to `meta`) and every session/trial stamped with it; any other install just gets the empty meta row. The onboarding flag alone is not the test, because the pre-profile "Replay Onboarding" button cleared it on installs with progress. Nobody outside this developer's machine had data before v3, so the migration exists for that one install and can be deleted along with v1/v2 once it has run there. The migration is exercised by a throwaway script against `fake-indexeddb`, not by anything checked in.
 
 ### Curriculum model (`src/chords.ts`)
 
 `CHORDS` is an **ordered** array of 14 chord definitions (9 white-key "Phase A", then 5 black-key "Phase B"), each with `midiNotes`, a `displayIdentity` colour name, and a `colorHex`. `CHORDS_MAP` indexes them by id.
 
-**Invariant:** `config.activeChordIds` is always a *prefix* of `CHORDS` in array order. `ParentDashboard.addChord()` appends `CHORDS[activeChordIds.length]` and `removeLastChord()` slices the last one off. Reordering `CHORDS` therefore silently rewrites what every existing learner is practising — append new chords, don't reorder.
+**Invariant:** `config.activeChordIds` is always a *prefix* of `CHORDS` in array order. `ParentDashboard.addChord()` appends `CHORDS[activeChordIds.length]` and `removeLastChord()` slices the last one off. Reordering `CHORDS` therefore silently rewrites what every existing learner is practicing — append new chords, don't reorder.
 
 Advancement is never automatic. The dashboard shows a checklist (≥14 days at level, ≥95% over the last 100 trials, parent approval) but the "Introduce Next Chord" button is never gated on it — the criteria are purely advisory. Its only `disabled` condition is having introduced all 14 chords. `currentLevelStartedAtUtc` resets on every add or remove.
 
@@ -102,8 +112,6 @@ Sessions have a **10-minute idle timeout** (`SESSION_IDLE_TIMEOUT_MS`). On mount
 
 These are live in the code — check before "fixing", and be aware they interact:
 
-- `db.ts` `endSession()` and `checkAndCloseStaleSessions()` hardcode `scoredTrialCount === 25` for `'completed'`. With `trialsPerSession: 20` a fully finished session that exits via those paths is classified `'completed_short'`. The normal completion path in `Practice.saveTrial()` sets `'completed'` directly and is unaffected.
-- `db.on('ready')` seeds `trialsPerSession: 25`; `ParentDashboard.resetData()` re-seeds it as `20`.
 - `animate-fadeIn` (`FirstRunOnboarding`) and `animate-spin-slow` (`RotateDeviceOverlay`) are used but never defined — `src/index.css` is only `@import "tailwindcss"` with no `@theme` or `@keyframes` block.
 - `FirstRunOnboarding` can finish with `'quickstart'` or `'guide'`, but `App.tsx` collapses both to the parent view; nothing deep-links into a guide section from onboarding.
 

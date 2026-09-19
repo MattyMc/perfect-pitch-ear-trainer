@@ -6,30 +6,36 @@ import { db } from '../db';
 import HoldToExit from './HoldToExit';
 import { newId } from '../utils/id';
 
-export default function IntroMode({ chordId, onExit }: { chordId: string, onExit: () => void }) {
+export default function IntroMode({ profileId, chordId, onExit }: { profileId: string, chordId: string, onExit: () => void }) {
   const [step, setStep] = useState(0);
-  const [sessionId, setSessionId] = useState('');
   const [isPlaying, setIsPlaying] = useState(true);
   const [statusText, setStatusText] = useState<'listening' | 'tap' | 'confirmed'>('listening');
   const isMountedRef = useRef(true);
   const isProcessingRef = useRef(false);
+  const startedAtRef = useRef(Date.now());
 
-  useEffect(() => {
-    isMountedRef.current = true;
-    const sid = newId();
-    setSessionId(sid);
-    
-    db.sessions.add({
-      id: sid,
-      startedAt: Date.now(),
-      lastActivityAt: Date.now(),
-      endedAt: null,
-      status: 'active',
-      endReason: null,
-      scoredTrialCount: 0,
+  // The intro writes its session row once, already completed, when the three taps are done.
+  // It never has an 'active' row, so nothing can resume it and the stale sweep never sees it.
+  // An abandoned intro simply leaves no row, which nothing reads.
+  const recordCompletedIntro = () => {
+    const now = Date.now();
+    return db.sessions.add({
+      id: newId(),
+      profileId,
+      startedAt: startedAtRef.current,
+      lastActivityAt: now,
+      endedAt: now,
+      status: 'completed',
+      endReason: 'target_reached',
+      scoredTrialCount: 3,
       plannedTrialCount: 3,
       sequence: [],
     });
+  };
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    startedAtRef.current = Date.now();
     
     const initIntro = async () => {
       await audio.init();
@@ -45,7 +51,7 @@ export default function IntroMode({ chordId, onExit }: { chordId: string, onExit
       await new Promise(r => setTimeout(r, 400));
       if (!isMountedRef.current) return;
       
-      runStep(0, sid);
+      runStep(0);
     };
 
     const t = setTimeout(() => {
@@ -58,19 +64,11 @@ export default function IntroMode({ chordId, onExit }: { chordId: string, onExit
     };
   }, [chordId]);
 
-  const runStep = async (currentStep: number, sid = sessionId) => {
+  const runStep = async (currentStep: number) => {
     if (!isMountedRef.current) return;
     
     isProcessingRef.current = true;
 
-    if (currentStep >= 3) {
-      setStep(3);
-      if (sid) {
-        db.sessions.update(sid, { status: 'completed', endReason: 'target_reached', endedAt: Date.now(), scoredTrialCount: 3 });
-      }
-      return;
-    }
-    
     setStep(currentStep);
     setIsPlaying(true);
     setStatusText('listening');
@@ -112,9 +110,7 @@ export default function IntroMode({ chordId, onExit }: { chordId: string, onExit
     const nextStep = step + 1;
     if (nextStep >= 3) {
       setStep(3);
-      if (sessionId) {
-        await db.sessions.update(sessionId, { status: 'completed', endReason: 'target_reached', endedAt: Date.now(), scoredTrialCount: 3 });
-      }
+      await recordCompletedIntro();
     } else {
       // Brief inter-trial pause before next chord
       await new Promise(r => setTimeout(r, 300));

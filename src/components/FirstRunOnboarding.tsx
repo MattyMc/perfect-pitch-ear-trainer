@@ -1,18 +1,20 @@
 import { useState } from 'react';
 import { Ear, Palette, Sparkles, Clock, CheckCircle2, Music2, ArrowRight } from 'lucide-react';
-import { db } from '../db';
+import { setOnboardingCompleted } from '../db';
 import { audio } from '../audio';
 
 interface FirstRunOnboardingProps {
+  /** The active child's name, used to personalise the copy. */
+  profileName: string;
   onComplete: (action: 'quickstart' | 'guide' | 'practice') => void;
 }
 
-export default function FirstRunOnboarding({ onComplete }: FirstRunOnboardingProps) {
+export default function FirstRunOnboarding({ profileName, onComplete }: FirstRunOnboardingProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
   const finish = async (action: 'quickstart' | 'guide' | 'practice') => {
     await audio.init();
-    await db.config.update('config', { hasCompletedOnboarding: true });
+    await setOnboardingCompleted(true);
     onComplete(action);
   };
 
@@ -38,9 +40,9 @@ export default function FirstRunOnboarding({ onComplete }: FirstRunOnboardingPro
               <div className="inline-flex p-4 rounded-2xl bg-blue-500/10 text-blue-400 mb-2">
                 <Music2 className="w-10 h-10" />
               </div>
-              <h1 className="text-2xl font-bold tracking-tight text-white">What your child will do</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-white">What {profileName} will do</h1>
               <p className="text-slate-300 leading-relaxed text-base">
-                Your child will learn to recognize specific piano chords and associate each one with a colour. The app plays a chord, and your child taps the matching colour.
+                {profileName} will learn to recognize specific piano chords and associate each one with a colour. The app plays a chord, and {profileName} taps the matching colour.
               </p>
             </div>
 
