@@ -53,7 +53,7 @@ The decision log asks for a 72 px floor with 88 to 112 px preferred. The build h
 
 ## Identity leak audit
 
-Checked 9 September 2026. No note name, chord name, or the word "chord" appears in any child-facing rendered or spoken text. Colour words are the only identity, and they appear only where the method intends: during intro and during correction. Note names and voicings appear only in the parent guide behind the parent gate. The browser tab title "Eguchi Absolute-Pitch Trainer" is visible in a browser but hidden in standalone mode.
+Checked 9 September 2026. No note name, chord name, or the word "chord" appears in any child-facing rendered or spoken text. Colour words are the only identity, and they appear only where the method intends: during intro and during correction. Note names and voicings appear only in the parent guide behind the parent gate. The browser tab title ("Perfect Pitch Ear Training for Kids: Eguchi Method | Matt McInnis") is visible in a browser but hidden in standalone mode; the home-screen label is "Perfect Pitch". Neither names a note or chord.
 
 ## Feedback the child sees that the decision log did not intend
 

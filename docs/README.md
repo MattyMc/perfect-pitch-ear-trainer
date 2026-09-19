@@ -2,7 +2,7 @@
 
 **Last verified against the code:** 9 September 2026 (commit `30208cc`). Research figures verified against Sakakibara (2014) on 10 September 2026.
 
-This directory describes the Eguchi chord-colour trainer as it is **actually built**, and records the product decisions behind it. It grew out of a research-and-specification pass done before the code existed; that spec has been reconciled against the source and reshaped. Where the spec and the code disagree, these docs say so rather than describing the intended behaviour as if it shipped.
+This directory describes Matt McInnis' Perfect Pitch Ear Training for Kids, the Eguchi chord-colour trainer, as it is **actually built**, and records the product decisions behind it. It grew out of a research-and-specification pass done before the code existed; that spec has been reconciled against the source and reshaped. Where the spec and the code disagree, these docs say so rather than describing the intended behaviour as if it shipped.
 
 `CLAUDE.md` at the repository root covers the toolchain (Node version, dev port, base path, deployment). These docs cover the product, the method, and the behaviour.
 

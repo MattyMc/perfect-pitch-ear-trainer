@@ -34,10 +34,8 @@ Bugs and inconsistencies confirmed in the code on 9 September 2026. None is fixe
 
 13. **Timing literals are duplicated.** The 2200 ms post-chord wait is hardcoded in `Practice.tsx` (three places) and `IntroMode.tsx`; `playChord`'s return value is ignored. The dashboard's test button speaks "Red" at 1200 ms, while the chord is still sounding.
 
-14. **Dead dependencies.** `@google/genai`, `express`, `dotenv`, `idb`, `motion`, `@types/express`, `autoprefixer`, and `tsx` are declared but unused. `metadata.json` declares a Gemini capability. `bun.lock` sits beside `package-lock.json`.
+14. **Target sizes below the 72 px floor.** Hold-to-exit is 48 px; the replay button is under 72 px tall; cards have a height floor but no width floor. See child-ux.md.
 
-15. **Target sizes below the 72 px floor.** Hold-to-exit is 48 px; the replay button is under 72 px tall; cards have a height floor but no width floor. See child-ux.md.
+15. **Cards have no accessible name.** Deliberate, to avoid leaking the answer, but it means the practice grid is silent to assistive technology. If an accessible label is ever added it must not contain the colour.
 
-16. **Cards have no accessible name.** Deliberate, to avoid leaking the answer, but it means the practice grid is silent to assistive technology. If an accessible label is ever added it must not contain the colour.
-
-17. **Guide wording overreaches or misstates the paper.** Verified against Sakakibara (2014) on 10 September 2026: "C3 to B5" is not in the paper; the criterion is 100%, not "near-perfect"; "1.5 to 2 years" describes the chord stages, while reaching the isolated-note criterion took a median of about four years. Editorial phrases to soften: "landmark", "deep neurological consolidation", "demonstrate critical-period plasticity", "two distinct chord timbres". See method.md.
+16. **Guide wording overreaches or misstates the paper.** Verified against Sakakibara (2014) on 10 September 2026: "C3 to B5" is not in the paper; the criterion is 100%, not "near-perfect"; "1.5 to 2 years" describes the chord stages, while reaching the isolated-note criterion took a median of about four years. Editorial phrases to soften: "landmark", "deep neurological consolidation", "demonstrate critical-period plasticity", "two distinct chord timbres". See method.md.

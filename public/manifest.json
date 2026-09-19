@@ -1,7 +1,7 @@
 {
-  "name": "Eguchi Trainer",
-  "short_name": "Eguchi",
-  "description": "Absolute-pitch trainer for children based on the Eguchi method.",
+  "name": "Matt McInnis' Perfect Pitch Ear Training for Kids",
+  "short_name": "Perfect Pitch",
+  "description": "A parent-supervised app in which a child learns to identify piano chords by colour, after the Eguchi method. All data stays on the device.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

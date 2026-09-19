@@ -39,8 +39,12 @@ Versions and licence fields from the installed packages.
 | dexie-react-hooks | 4.4.0 | Apache-2.0 | <https://github.com/dexie/Dexie.js> |
 | lucide-react | 0.546.0 | ISC | <https://github.com/lucide-icons/lucide> |
 | tailwindcss (generated CSS only) | 4.3.3 | MIT | <https://github.com/tailwindlabs/tailwindcss> |
+| scheduler (via react-dom) | as installed | MIT | <https://github.com/facebook/react> |
+| standardized-audio-context, automation-events (via tone) | as installed | MIT | <https://github.com/chrisguttandin/standardized-audio-context> |
+| @babel/runtime (via tone) | as installed | MIT | <https://github.com/babel/babel> |
+| tslib (via tone) | as installed | 0BSD | <https://github.com/microsoft/tslib> |
 
-All permit redistribution with the notice retained. Build-time tools (Vite, TypeScript, the React plugin) are not shipped.
+All permit redistribution with the notice retained; none is copyleft. Build-time tools (Vite, TypeScript, esbuild, the React plugin, Tailwind's compiler and its MPL-2.0 dependency `lightningcss`) run on the developer's machine and are not shipped, so their licences place no obligation on the deployed app. Verified from `package-lock.json` on 19 September 2026: the shipped closure of `react`, `react-dom`, `dexie`, `dexie-react-hooks`, `lucide-react`, and `tone` contains only MIT, Apache-2.0, ISC, and 0BSD packages.
 
 ## Other shipped assets
 
@@ -48,6 +52,6 @@ All permit redistribution with the notice retained. Build-time tools (Vite, Type
 - **Speech** uses the platform's Web Speech API voices at runtime. No voice recordings are shipped.
 - **Fonts:** the system font stack. No web fonts are shipped.
 
-## Declared but unused
+## The application itself
 
-`@google/genai`, `express`, `dotenv`, `idb`, and `motion` appear in `package.json` but are not imported and are not bundled. They carry no shipping obligation; they should be removed.
+Matt McInnis' Perfect Pitch Ear Training for Kids is released under the MIT licence; see `LICENSE` at the repository root. The third-party terms above apply to their own components only.

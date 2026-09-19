@@ -109,7 +109,7 @@ Checked on 9 September 2026 by grepping `src/`, `index.html`, and `public/`:
 - No microphone or speech recognition; the Web Speech API is used for **output** only.
 - The only outbound links are three research citations in the parent guide, opened with `rel="noreferrer"`.
 
-Hygiene caveat: `@google/genai`, `express`, `dotenv`, `idb`, and `motion` are declared in `package.json`, and `metadata.json` declares a server-side Gemini capability, but none is imported anywhere. They are AI Studio leftovers, not signals about behaviour. Removing them would make the privacy story easier to audit.
+`package.json` now declares only the six libraries the bundle ships under `dependencies`; the AI Studio leftovers (`@google/genai` and friends, and the `metadata.json` that declared a Gemini capability) were removed on 19 September 2026, so a dependency audit and the privacy story agree.
 
 ## Offline
 

@@ -46,7 +46,7 @@ There is no service worker, so the app does not work offline.
 
 ## What this app is
 
-A trainer for the Eguchi absolute-pitch method: a child hears a fixed piano chord and taps the **colour** associated with it. Chords are never named as notes to the child — the colour *is* the identity. Training is parent-supervised, deliberately slow (weeks per chord), and all data stays local.
+**Matt McInnis' Perfect Pitch Ear Training for Kids** (manifest name). The home-screen label is "Perfect Pitch" and the browser title is search-oriented ("Perfect Pitch Ear Training for Kids: Eguchi Method | Matt McInnis"); the author's name is a brand credit, not something the in-app UI displays. The repo and URL path keep the older `perfect-pitch-ear-trainer` name because the GitHub Pages path depends on it. Licence: MIT (`LICENSE`). A trainer for the Eguchi absolute-pitch method: a child hears a fixed piano chord and taps the **colour** associated with it. Chords are never named as notes to the child — the colour *is* the identity. Training is parent-supervised, deliberately slow (weeks per chord), and all data stays local.
 
 ## Architecture
 
@@ -121,6 +121,6 @@ Generated in Google AI Studio, which leaves traces worth knowing about:
 
 - `vite.config.ts` reads `DISABLE_HMR` to turn off HMR *and* file watching. It carries a comment asking not to modify it; it is inert outside AI Studio.
 - `@/*` in `tsconfig.json` and `vite.config.ts` aliases the **repository root**, not `src/`. Nothing currently imports through it — all imports are relative.
-- `@google/genai`, `express`, `dotenv`, `idb`, and `motion` are dependencies but are **not imported anywhere in `src/`**. `metadata.json` declares a Gemini API capability that the app does not use. Treat these as removable leftovers rather than as signals about the intended architecture.
+- The AI Studio leftovers (`@google/genai`, `express`, `dotenv`, `idb`, `motion`, `@types/express`, `autoprefixer`, `tsx`, `metadata.json`, `bun.lock`) have been removed. `dependencies` now holds only the six libraries the bundle ships; Vite, its React plugin, and the Tailwind plugin live under `devDependencies`.
 - Tailwind v4 via `@tailwindcss/vite` — configuration is CSS-first, so there is no `tailwind.config.js`.
 - Icons are `lucide-react`. Styling is Tailwind utility classes inline; there are no CSS modules or styled-components.

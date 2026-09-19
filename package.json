@@ -1,7 +1,30 @@
 {
   "name": "perfect-pitch-ear-trainer",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.0.0",
+  "description": "Matt McInnis' Perfect Pitch Ear Training for Kids: a parent-supervised app in which a child learns to identify piano chords by colour, after the Eguchi method.",
+  "author": "Matt McInnis (https://github.com/MattyMc)",
+  "license": "MIT",
+  "homepage": "https://mattymc.github.io/perfect-pitch-ear-trainer/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MattyMc/perfect-pitch-ear-trainer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MattyMc/perfect-pitch-ear-trainer/issues"
+  },
+  "keywords": [
+    "perfect-pitch",
+    "absolute-pitch",
+    "ear-training",
+    "kids",
+    "children",
+    "piano",
+    "chords",
+    "eguchi",
+    "music-education",
+    "pwa"
+  ],
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
@@ -10,35 +33,26 @@
     "dev": "vite --port=3001 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/genai": "^2.4.0",
-    "@tailwindcss/vite": "^4.1.14",
-    "@vitejs/plugin-react": "^5.0.4",
     "dexie": "^4.4.5",
     "dexie-react-hooks": "^4.4.0",
-    "dotenv": "^17.2.3",
-    "express": "^4.21.2",
-    "idb": "^8.0.3",
     "lucide-react": "^0.546.0",
-    "motion": "^12.23.24",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
-    "tone": "^15.1.22",
-    "vite": "^6.2.3"
+    "tone": "^15.1.22"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
-    "autoprefixer": "^10.4.21",
+    "@vitejs/plugin-react": "^5.2.0",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",
-    "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "vite": "^6.4.3"
   }
 }

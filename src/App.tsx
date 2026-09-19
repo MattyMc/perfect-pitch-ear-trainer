@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useState, ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, META_ID, suggestProfileColour, AppConfig, Profile } from './db';
