@@ -75,7 +75,7 @@ Per-profile queries use the compound indexes. Any schema change requires a new `
 There is no `db.on('ready')` seed. `createProfile(name)` writes the profile, its config from `defaultConfig(profileId)`, and the active pointer in one transaction:
 
 ```ts
-{ id: profileId, activeChordIds: ['red'], trialsPerSession: 25, currentLevelStartedAtUtc: Date.now() }
+{ id: profileId, activeChordIds: ['red'], trialsPerSession: 20, currentLevelStartedAtUtc: Date.now() }
 ```
 
 The `meta` row always exists: Dexie's `populate` hook seeds it on a fresh database and the v3 upgrade writes it on an old one. Writers therefore use a plain field-level `db.meta.update()`, so setting the active profile never touches the onboarding flag and vice versa. The App snapshot throws if the row is ever missing, which lands on the error screen rather than a blank page.

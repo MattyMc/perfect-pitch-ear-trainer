@@ -98,16 +98,16 @@ export interface AppConfig {
   /**
    * Playback timing, both in ms and both optional so rows written before they existed need no
    * migration. Read them through `resolvePlaybackTiming` (utils/playbackTiming.ts), which
-   * supplies the defaults and keeps the lock no longer than the chord. An absent
-   * `inputLockMs` means the cards stay locked until the chord ends.
+   * supplies the defaults (1.5 s chord, 0.5 s lock) and keeps the lock no longer than the
+   * chord. `inputLockMs: null` means "Whole chord": locked until the chord ends.
    */
   chordDurationMs?: number;
-  inputLockMs?: number;
+  inputLockMs?: number | null;
 }
 
 export const META_ID = 'app';
 export const PROFILE_NAME_MAX_LENGTH = 24;
-export const DEFAULT_TRIALS_PER_SESSION = 25;
+export const DEFAULT_TRIALS_PER_SESSION = 20;
 
 /** Name given to the profile that an install from before profiles existed is migrated into. */
 export const LEGACY_PROFILE_NAME = 'My child';

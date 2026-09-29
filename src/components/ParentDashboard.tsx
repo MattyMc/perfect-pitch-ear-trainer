@@ -77,7 +77,6 @@ export default function ParentDashboard({ profile, config, profiles, onExit, onS
     await db.config.update(profileId, { trialsPerSession: count });
   };
 
-  // `inputLockMs: undefined` deletes the field, which is what "whole chord" means.
   const setPlaybackTiming = async (patch: Pick<AppConfig, 'chordDurationMs' | 'inputLockMs'>) => {
     await db.config.update(profileId, patch);
   };
@@ -292,7 +291,7 @@ export default function ParentDashboard({ profile, config, profiles, onExit, onS
                   1. Minimum 14 days at this level ({daysAtLevel}/14 days)
                 </span>
                 <span className="text-[11px] text-slate-500">
-                  Allows auditory memory consolidation (~56 sessions / 1,400 sounds).
+                  Allows auditory memory consolidation (~56 sessions / 1,120 sounds).
                 </span>
               </div>
             </div>

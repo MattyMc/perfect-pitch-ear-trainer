@@ -43,7 +43,7 @@ On `AudioNeedsGestureError`, `Practice` and `IntroMode` show a "Ready to continu
 
 ## Timing coupling
 
-Chord length and the card lock are per-profile settings (`chordDurationMs`, `inputLockMs` on the config row), resolved by `resolvePlaybackTiming` in `src/utils/playbackTiming.ts`. The default is a 1.5 s hold (audible for about 1.65 s with the release) with the cards locked for the whole chord. `Practice` passes the chord length to `playChord` and waits only for the lock before enabling the cards; the chord keeps sounding until it ends or a tap calls `stopChord()`. `IntroMode` plays the chord length and waits for all of it, then speaks the colour. The dashboard's test button and the guide's chord previews play at the profile's chord length, and the test button speaks "Red" when the chord ends.
+Chord length and the card lock are per-profile settings (`chordDurationMs`, `inputLockMs` on the config row), resolved by `resolvePlaybackTiming` in `src/utils/playbackTiming.ts`. The default is a 1.5 s hold (audible for about 1.65 s with the release) with the cards locked for the first 0.5 s ("Whole chord", stored as `inputLockMs: null`, locks them until the chord ends). `Practice` passes the chord length to `playChord` and waits only for the lock before enabling the cards; the chord keeps sounding until it ends or a tap calls `stopChord()`. `IntroMode` plays the chord length and waits for all of it, then speaks the colour. The dashboard's test button and the guide's chord previews play at the profile's chord length, and the test button speaks "Red" when the chord ends.
 
 ## What the spec wanted that is not here
 

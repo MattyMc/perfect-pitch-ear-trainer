@@ -87,7 +87,7 @@ export default function FirstRunOnboarding({ profileName, onComplete }: FirstRun
               </div>
               <h1 className="text-2xl font-bold tracking-tight text-white">What you will do</h1>
               <p className="text-slate-300 leading-relaxed text-sm">
-                Help your child complete four short sessions throughout the day. Each session contains 25 sounds and usually takes only a few minutes. Stay nearby, but do not give hints.
+                Help your child complete four short sessions throughout the day. Each session contains 20 sounds and usually takes only a few minutes. Stay nearby, but do not give hints.
               </p>
             </div>
 

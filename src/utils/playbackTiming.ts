@@ -9,12 +9,13 @@ export const DEFAULT_CHORD_DURATION_MS = 1500;
 
 /**
  * How long the answer cards stay disabled after a chord starts, in ms, as offered in the
- * dashboard. Leaving the setting unset means "until the chord ends", which is the default.
- * A lock shorter than the chord lets the child answer while it still sounds; the tap cuts the
- * chord off. Every option is shorter than the longest chord, and the resolved lock is clamped
- * to the chord, so a lock can never outlast the sound it guards.
+ * dashboard. The default is 0.5 s; a stored `null` means "Whole chord" (locked until the chord
+ * ends). A lock shorter than the chord lets the child answer while it still sounds; the tap
+ * cuts the chord off. Every option is shorter than the longest chord, and the resolved lock is
+ * clamped to the chord, so a lock can never outlast the sound it guards.
  */
 export const INPUT_LOCK_OPTIONS_MS = [500, 1000, 2000] as const;
+export const DEFAULT_INPUT_LOCK_MS = 500;
 
 export interface PlaybackTiming {
   chordDurationMs: number;
@@ -28,10 +29,11 @@ export function resolvePlaybackTiming(config: Pick<AppConfig, 'chordDurationMs' 
     chordDurationMs !== undefined && Number.isFinite(chordDurationMs) && chordDurationMs > 0
       ? chordDurationMs
       : DEFAULT_CHORD_DURATION_MS;
-  const lock =
-    inputLockMs !== undefined && Number.isFinite(inputLockMs)
-      ? Math.min(Math.max(inputLockMs, 0), duration)
-      : duration;
+  const requestedLock =
+    inputLockMs === null ? duration
+      : inputLockMs !== undefined && Number.isFinite(inputLockMs) ? inputLockMs
+      : DEFAULT_INPUT_LOCK_MS;
+  const lock = Math.min(Math.max(requestedLock, 0), duration);
   return { chordDurationMs: duration, inputLockMs: lock };
 }
 

@@ -4,7 +4,7 @@ import PlaybackTimingSettings from './PlaybackTimingSettings';
 
 afterEach(cleanup);
 
-function renderSettings(config: { chordDurationMs?: number; inputLockMs?: number }) {
+function renderSettings(config: { chordDurationMs?: number; inputLockMs?: number | null }) {
   const onChange = vi.fn();
   const view = render(<PlaybackTimingSettings config={config} onChange={onChange} />);
   const durationGroup = within(view.getByRole('group', { name: 'Chord length' }));
@@ -15,9 +15,14 @@ function renderSettings(config: { chordDurationMs?: number; inputLockMs?: number
 }
 
 describe('PlaybackTimingSettings', () => {
-  it('shows the defaults for a config that has never set them: 1.5 s, locked for the whole chord', () => {
+  it('shows the defaults for a config that has never set them: 1.5 s chord, 0.5 s lock', () => {
     const { durationGroup, lockGroup, pressed } = renderSettings({});
     expect(pressed(durationGroup)).toEqual(['1.5 s']);
+    expect(pressed(lockGroup)).toEqual(['0.5 s']);
+  });
+
+  it('shows "Whole chord" for a saved whole-chord lock', () => {
+    const { lockGroup, pressed } = renderSettings({ chordDurationMs: 3000, inputLockMs: null });
     expect(pressed(lockGroup)).toEqual(['Whole chord']);
   });
 
@@ -37,7 +42,7 @@ describe('PlaybackTimingSettings', () => {
     const { durationGroup, onChange } = renderSettings({ chordDurationMs: 3000, inputLockMs: 2000 });
     fireEvent.click(durationGroup.getByRole('button', { name: '1.5 s' }));
     // toStrictEqual, because a plain match treats a missing key as equal to `undefined`.
-    expect(onChange.mock.calls[0][0]).toStrictEqual({ chordDurationMs: 1500, inputLockMs: undefined });
+    expect(onChange.mock.calls[0][0]).toStrictEqual({ chordDurationMs: 1500, inputLockMs: null });
   });
 
   it('changing the chord keeps a saved lock that is still shorter than it', () => {
@@ -52,10 +57,10 @@ describe('PlaybackTimingSettings', () => {
     expect(onChange).toHaveBeenCalledWith({ inputLockMs: 500 });
   });
 
-  it('"Whole chord" clears the lock so it follows the chord length', () => {
+  it('"Whole chord" saves null, so the lock follows the chord length', () => {
     const { lockGroup, onChange } = renderSettings({ chordDurationMs: 3000, inputLockMs: 500 });
     fireEvent.click(lockGroup.getByRole('button', { name: 'Whole chord' }));
-    expect(onChange).toHaveBeenCalledWith({ inputLockMs: undefined });
+    expect(onChange.mock.calls[0][0]).toStrictEqual({ inputLockMs: null });
   });
 
   it('disables locks that are not shorter than the chord, since they would mean the whole chord', () => {

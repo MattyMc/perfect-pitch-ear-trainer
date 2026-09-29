@@ -323,7 +323,7 @@ export default function ParentGuide({
           {openSections.routine && (
             <div className="space-y-3 text-slate-700 text-sm leading-relaxed pt-1">
               <ul className="list-disc list-inside space-y-1 text-xs text-slate-700">
-                <li><strong>Default:</strong> Four sessions of 25 trials each (~100 trials daily).</li>
+                <li><strong>Default:</strong> Four sessions of 20 trials each (~80 trials daily).</li>
                 <li><strong>Alternative:</strong> Five sessions of 20 trials.</li>
                 <li>Each session takes only <strong>2 to 5 minutes</strong>.</li>
                 <li>Spread sessions across the day—never combine into one long session.</li>
@@ -378,7 +378,7 @@ export default function ParentGuide({
 
               <div className="space-y-1.5 text-xs text-slate-700">
                 <span className="font-bold text-slate-900 block">Progression Rules (ALL are mandatory):</span>
-                <p>• <strong>14-Day Minimum:</strong> At least 14 days must elapse at each level (~56 sessions or 1,400 trials) to allow deep neurological consolidation.</p>
+                <p>• <strong>14-Day Minimum:</strong> At least 14 days must elapse at each level (~56 sessions or 1,120 trials) to allow deep neurological consolidation.</p>
                 <p>• <strong>Rolling 95%+ Accuracy:</strong> High accuracy must be maintained across the most recent 100 trials.</p>
                 <p>• <strong>Manual Approval:</strong> Advancement is never automatic; the parent evaluates readiness and confirms the addition of the next chord.</p>
               </div>

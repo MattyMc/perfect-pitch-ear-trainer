@@ -118,7 +118,7 @@ Sessions that finish normally go through `saveTrial`, which sets `completed` dir
 | What | Value | Where |
 |---|---|---|
 | Chord hold | Per profile: 1.5, 2, 3 or 4 s (default 1.5 s), velocity 0.65 | `config.chordDurationMs` → `resolvePlaybackTiming` → `audio.playChord` |
-| Card lock after a chord starts | Per profile: 0.5, 1, 2 s or the whole chord (default whole chord); never longer than the chord | `config.inputLockMs` → `resolvePlaybackTiming` → `Practice.tsx` |
+| Card lock after a chord starts | Per profile: 0.5, 1, 2 s or the whole chord (default 0.5 s; whole chord is stored as `null`); never longer than the chord | `config.inputLockMs` → `resolvePlaybackTiming` → `Practice.tsx` |
 | Sampler release | 0.15 s | `audio.ts` constructor |
 | Pause after correct | 850 ms | `Practice.tsx` |
 | Pause after spoken label | 300 ms | `Practice.tsx` |

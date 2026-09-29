@@ -7,7 +7,7 @@ type TimingFields = Pick<AppConfig, 'chordDurationMs' | 'inputLockMs'>;
 
 interface PlaybackTimingSettingsProps {
   config: TimingFields;
-  /** A patch for the profile's config row. `inputLockMs: undefined` means "whole chord". */
+  /** A patch for the profile's config row. `inputLockMs: null` means "Whole chord". */
   onChange: (patch: TimingFields) => void;
 }
 
@@ -36,8 +36,8 @@ export default function PlaybackTimingSettings({ config, onChange }: PlaybackTim
               // A saved lock that no longer fits is shown as "Whole chord", so clear it to match;
               // otherwise it would silently return if the chord were lengthened again.
               onClick={() => onChange(
-                config.inputLockMs !== undefined && config.inputLockMs >= ms
-                  ? { chordDurationMs: ms, inputLockMs: undefined }
+                typeof config.inputLockMs === 'number' && config.inputLockMs >= ms
+                  ? { chordDurationMs: ms, inputLockMs: null }
                   : { chordDurationMs: ms },
               )}
               className={optionClass(chordDurationMs === ms)}
@@ -71,7 +71,7 @@ export default function PlaybackTimingSettings({ config, onChange }: PlaybackTim
           })}
           <button
             aria-pressed={locksWholeChord}
-            onClick={() => onChange({ inputLockMs: undefined })}
+            onClick={() => onChange({ inputLockMs: null })}
             className={optionClass(locksWholeChord)}
           >
             Whole chord
