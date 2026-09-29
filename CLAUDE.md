@@ -12,7 +12,10 @@ npm run build    # Production build to dist/
 npm run preview  # Serve the built dist/ (port 4173)
 npm run lint     # lockfile check, then tsc --noEmit (type-checks the tests too)
 npm test         # Vitest, once; `npm run test:watch` to watch
+npm run verify   # lint, tests, then build: what the pre-push hook runs
 ```
+
+**A pre-push hook runs `npm run verify` against every commit you push** (`.githooks/pre-push`; `npm install` enables it through the `prepare` script, which sets `core.hooksPath`). It checks the pushed commit out into a throwaway worktree, so uncommitted edits can't make it pass and a file you forgot to `git add` makes it fail, as it would in CI. It switches to the `.nvmrc` Node first, because the shell's default Node on this machine is older than the project's floor. The worktree borrows this checkout's `node_modules`, so run `npm install` after changing dependencies. Don't bypass it with `--no-verify` to get a push through: fix what it reports.
 
 **The app is served under a path prefix, not at the domain root.** `vite.config.ts` sets `base: '/perfect-pitch-ear-trainer/'` for GitHub Pages, and that applies in dev and preview too — so the dev URL is `http://localhost:3001/perfect-pitch-ear-trainer/`, not `http://localhost:3001/`. The base is set unconditionally on purpose: making it conditional would leave `vite preview` disagreeing with the path prefix already baked into the built HTML.
 

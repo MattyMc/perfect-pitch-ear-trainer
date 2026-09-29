@@ -35,9 +35,11 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "npm run check:lockfile && tsc --noEmit",
-    "check:lockfile": "npm ci --dry-run --no-audit --no-fund --loglevel=error",
+    "check:lockfile": "npm ci --dry-run --no-audit --no-fund --loglevel=error > /dev/null",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify": "npm run lint && npm test && npm run build",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "dexie": "^4.4.5",
