@@ -10,7 +10,8 @@ Product behaviour, the method, the curriculum, and every product decision with i
 npm run dev      # Vite dev server on port 3001, bound to 0.0.0.0
 npm run build    # Production build to dist/
 npm run preview  # Serve the built dist/ (port 4173)
-npm run lint     # tsc --noEmit — this is the only check in the project
+npm run lint     # tsc --noEmit (type-checks the tests too)
+npm test         # Vitest, once; `npm run test:watch` to watch
 ```
 
 **The app is served under a path prefix, not at the domain root.** `vite.config.ts` sets `base: '/perfect-pitch-ear-trainer/'` for GitHub Pages, and that applies in dev and preview too — so the dev URL is `http://localhost:3001/perfect-pitch-ear-trainer/`, not `http://localhost:3001/`. The base is set unconditionally on purpose: making it conditional would leave `vite preview` disagreeing with the path prefix already baked into the built HTML.
@@ -21,7 +22,7 @@ This is not cosmetic. When npm decides your Node is too old for a package, it si
 
 Port 3001 is deliberate — 3000 is taken by a Rails app in this developer's setup.
 
-There is no test framework, no ESLint, and no CI. `npm run lint` (a bare TypeScript type-check) is the full verification story; run it after any non-trivial change.
+Tests are Vitest with jsdom and React Testing Library (`vitest.config.ts` merges `vite.config.ts`; tests live beside their source as `*.test.ts(x)`). They cover playback timing only: the pure rules, the audio engine with `tone` mocked, and `Practice` under fake timers with `../db` and `../audio` mocked. Run `npm test` and `npm run lint` after any non-trivial change. There is no ESLint, and the deploy workflow runs lint but not the tests.
 
 `strict` is on and the codebase passes it with zero errors — keep it that way rather than reaching for `any` or `!`. Note that `@types/react` was missing from this project for a while, which silently typed every hook and JSX element as `any`; if type errors ever vanish en masse, suspect the React types before believing the code got safer.
 
@@ -72,7 +73,7 @@ Dexie/IndexedDB (`EguchiDB`), five tables, read everywhere through `useLiveQuery
 
 - `profiles` — `{ id, name, colorHex, createdAtUtc }`. A name and a colour; no credentials. `colorHex` is the `ProfileColour` union type derived from `PROFILE_COLOURS` (an `as const` array), so the compiler rejects anything off the palette. The palette is deep, low-chroma tones two steps darker than the answer cards, so they read as UI ink rather than card paint. A chord's colour is its identity to the child, so the other half of the rule is role and size: a profile colour appears only as a small dot beside a name, never card-sized and never spoken. The palette was chosen on a design canvas showing the alternatives against the chord colours; if you change it, keep every swatch dark enough for a white tick at 4.5:1.
 - `meta` — a **single row with `id: 'app'`** holding `activeProfileId` and `hasCompletedOnboarding`. Device-level, not per profile. It always exists: `db.on('populate')` seeds it on a fresh database and the v3 upgrade writes it on an old one, so writers use a plain `db.meta.update()`.
-- `config` — **one row per profile, keyed by the profile's id** (`AppConfig.id === profile.id`). Holds `activeChordIds`, `trialsPerSession`, `currentLevelStartedAtUtc`. Seeded by `defaultConfig()` inside `createProfile()`; there is no `db.on('ready')` seed any more.
+- `config` — **one row per profile, keyed by the profile's id** (`AppConfig.id === profile.id`). Holds `activeChordIds`, `trialsPerSession`, `currentLevelStartedAtUtc`, and the optional playback-timing fields `chordDurationMs` / `inputLockMs` (see Audio). Seeded by `defaultConfig()` inside `createProfile()`; there is no `db.on('ready')` seed any more.
 - `sessions` — one row per practice attempt, carrying `profileId`, with a `status` lifecycle: `active` → `completed` | `completed_short` | `interrupted` | `discarded`. `IntroMode` is the exception: it writes its row once, already `completed`, when the three taps finish, so an intro row is never `active` and an abandoned intro leaves no row.
 - `trials` — one row per presented sound, carrying `profileId`. `firstAnswerCorrect` is *the* metric; everything upstream (dashboard accuracy, advancement eligibility) derives from it.
 
@@ -94,7 +95,7 @@ A module-level singleton `audio` (`new AudioEngine()`). Its constructor attaches
 
 Playback is a `Tone.Sampler` over **7 Salamander Grand Piano samples** (`public/audio/piano/`, A3/C4/D♯4/F♯4/A4/C5/D♯5). Every other pitch is interpolated by Tone from those. Feedback sounds are synthesised `Tone.Oscillator` chirps, and correction prompts use the Web Speech API (`audio.speak`, which resolves on `onend` or a word-count-estimated fallback timer, since browsers routinely drop `onend`).
 
-**Timing is hardcoded and duplicated.** `playChord` returns 2200ms and the components independently `await new Promise(r => setTimeout(r, 2200))` to know when playback ended. Changing the note duration in `audio.ts` means updating those literals in `Practice.tsx` and `IntroMode.tsx` too, or the UI unlocks early.
+**Timing is a per-profile setting.** `config.chordDurationMs` (how long the chord is held) and `config.inputLockMs` (how long the cards stay disabled after it starts; absent means the whole chord) are optional fields, always read through `resolvePlaybackTiming` in `src/utils/playbackTiming.ts`, which fills in defaults and keeps the lock no longer than the chord. `playChord(notes, durationMs)` attacks now and releases on a timer; `stopChord()` cancels that timer and calls `releaseAll()`. Don't go back to `triggerAttackRelease`: it calls `triggerRelease` immediately, which empties the sampler's active sources, so the chord can no longer be interrupted. `Practice` waits only for the lock, and every accepted tap calls `stopChord()` first. `IntroMode` ignores the lock and waits out the whole chord before speaking the colour.
 
 ### The trial loop (`src/components/Practice.tsx`)
 

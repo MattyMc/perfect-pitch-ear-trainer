@@ -10,6 +10,7 @@ import FirstRunOnboarding from './components/FirstRunOnboarding';
 import ProfileCreateScreen from './components/ProfileCreateScreen';
 import ProfileSwitcher from './components/ProfileSwitcher';
 import RotateDeviceOverlay from './components/RotateDeviceOverlay';
+import { resolvePlaybackTiming } from './utils/playbackTiming';
 
 const Loading = () => (
   <div className="w-full h-full bg-slate-900 flex items-center justify-center text-slate-400">Loading...</div>
@@ -90,6 +91,7 @@ export default function App() {
         <IntroMode
           profileId={profile.id}
           chordId={config.activeChordIds[0]}
+          chordDurationMs={resolvePlaybackTiming(config).chordDurationMs}
           onExit={() => setView('home')}
         />
       ) : (
@@ -97,6 +99,7 @@ export default function App() {
           profileId={profile.id}
           activeChordIds={config.activeChordIds}
           trialsPerSession={config.trialsPerSession}
+          {...resolvePlaybackTiming(config)}
           onExit={() => setView('home')}
         />
       );

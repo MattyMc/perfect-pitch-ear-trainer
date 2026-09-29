@@ -12,12 +12,16 @@ interface PracticeProps {
   profileId: string;
   activeChordIds: string[];
   trialsPerSession: number;
+  /** How long each chord is held. From `resolvePlaybackTiming`. */
+  chordDurationMs: number;
+  /** How long the cards stay disabled after a chord starts; never longer than the chord. */
+  inputLockMs: number;
   onExit: () => void;
 }
 
 type TrialState = 'Initializing' | 'NeedsResumeTap' | 'Ready' | 'Playing' | 'Awaiting' | 'Correct' | 'Correcting' | 'PlayingCorrection' | 'CorrectionTap' | 'Done';
 
-export default function Practice({ profileId, activeChordIds, trialsPerSession, onExit }: PracticeProps) {
+export default function Practice({ profileId, activeChordIds, trialsPerSession, chordDurationMs, inputLockMs, onExit }: PracticeProps) {
   const [sequence, setSequence] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [trialState, setTrialState] = useState<TrialState>('Initializing');
@@ -95,6 +99,7 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
 
     return () => {
       isMountedRef.current = false;
+      audio.stopChord();
     };
   }, []);
 
@@ -131,9 +136,10 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
     
     const chord = CHORDS_MAP.get(chordId);
     if (chord) {
-      // 1. Play chord sound (2.2s)
-      audio.playChord(chord.midiNotes);
-      await new Promise(r => setTimeout(r, 2200));
+      // 1. Play the chord, holding the cards for the input lock. The chord keeps sounding
+      // after the lock ends unless a tap cuts it off.
+      audio.playChord(chord.midiNotes, chordDurationMs);
+      await new Promise(r => setTimeout(r, inputLockMs));
       if (!isMountedRef.current) return;
 
       // 2. Open answering window
@@ -164,8 +170,8 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
 
     const chord = CHORDS_MAP.get(currentChordId);
     if (chord) {
-      audio.playChord(chord.midiNotes);
-      await new Promise(r => setTimeout(r, 2200));
+      audio.playChord(chord.midiNotes, chordDurationMs);
+      await new Promise(r => setTimeout(r, inputLockMs));
       if (!isMountedRef.current) return;
       setTrialState(prevState);
       isProcessingRef.current = false;
@@ -259,6 +265,9 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
     if (!isMountedRef.current || !currentChordId || isInputLocked || isProcessingRef.current) return;
     
     isProcessingRef.current = true;
+    // A tap during the chord answers it, so the chord stops rather than ringing under the
+    // chime or the spoken correction.
+    audio.stopChord();
 
     if (trialState === 'Awaiting') {
       const isCorrect = tappedChordId === currentChordId;
@@ -287,8 +296,8 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
 
         // 2. Replay correct chord
         setTrialState('PlayingCorrection');
-        audio.playChord(correctChord.midiNotes);
-        await new Promise(r => setTimeout(r, 2200));
+        audio.playChord(correctChord.midiNotes, chordDurationMs);
+        await new Promise(r => setTimeout(r, inputLockMs));
         if (!isMountedRef.current) return;
 
         // 3. Allow correction tap on target card
@@ -481,6 +490,7 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
             return (
               <button
                 key={id}
+                data-chord-id={id}
                 onClick={() => handleCardTap(id)}
                 disabled={isDisabled}
                 className={`relative overflow-hidden rounded-[2rem] shadow-sm transition-all duration-300 ${!isDisabled ? 'active:scale-95' : ''} ${opacity} ${scale} ${pointerEvents} ${extraStyles}`}

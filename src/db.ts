@@ -95,6 +95,14 @@ export interface AppConfig {
   activeChordIds: string[];
   trialsPerSession: number;
   currentLevelStartedAtUtc?: number;
+  /**
+   * Playback timing, both in ms and both optional so rows written before they existed need no
+   * migration. Read them through `resolvePlaybackTiming` (utils/playbackTiming.ts), which
+   * supplies the defaults and keeps the lock no longer than the chord. An absent
+   * `inputLockMs` means the cards stay locked until the chord ends.
+   */
+  chordDurationMs?: number;
+  inputLockMs?: number;
 }
 
 export const META_ID = 'app';

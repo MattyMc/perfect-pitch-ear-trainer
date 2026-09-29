@@ -2,6 +2,7 @@ import * as Tone from 'tone';
 
 export class AudioEngine {
   private sampler: Tone.Sampler | null = null;
+  private releaseTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     // Setup listeners on window to automatically unlock on first user gesture
@@ -51,26 +52,38 @@ export class AudioEngine {
   }
 
   /**
-   * Play an acoustic piano chord using Tone.js Sampler
+   * Play an acoustic piano chord using Tone.js Sampler, held for `durationMs` and then
+   * released. Any chord still sounding is cut off first. `stopChord` ends it early.
+   *
+   * The release is a timer rather than `triggerAttackRelease`, because that schedules the
+   * release by calling `triggerRelease` immediately, which empties the sampler's list of
+   * active sources — after that, `releaseAll()` finds nothing and the chord cannot be
+   * interrupted.
    */
-  playChord(midiNotes: number[]): number {
-    if (!this.sampler || Tone.context.state !== 'running') return 2000;
-
-    const duration = 2.2;
-    // Schedule exactly now as requested
-    const startTime = Tone.now();
+  playChord(midiNotes: number[], durationMs: number) {
+    this.stopChord();
+    if (!this.sampler || Tone.context.state !== 'running') return;
 
     // Convert MIDI note numbers to standard note strings (e.g., "C4")
     const notes = midiNotes.map(note => Tone.Frequency(note, "midi").toNote());
+    const sampler = this.sampler;
 
-    this.sampler.triggerAttackRelease(
-      notes,
-      1.5,
-      startTime,
-      0.65
-    );
+    // Schedule exactly now as requested
+    sampler.triggerAttack(notes, Tone.now(), 0.65);
+    this.releaseTimer = setTimeout(() => {
+      this.releaseTimer = null;
+      sampler.triggerRelease(notes);
+    }, durationMs);
+  }
 
-    return duration * 1000;
+  /** Cuts off a sounding chord now (with the sampler's short release fade). Safe when silent. */
+  stopChord() {
+    // No pending release means the chord was already released (triggerRelease empties the
+    // sampler's active list), so there is nothing left to cut off.
+    if (this.releaseTimer === null) return;
+    clearTimeout(this.releaseTimer);
+    this.releaseTimer = null;
+    this.sampler?.releaseAll();
   }
 
   playSuccessTone(): number {

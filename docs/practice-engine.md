@@ -15,7 +15,7 @@ There is no other mode. In particular there is no note-naming mode for Phase B a
 
 1. On mount, records the start time. Nothing is written yet.
 2. Speaks "Listen to the sound, then tap the card." and waits 400 ms.
-3. Three steps. Each: play the chord, wait 2200 ms, speak the colour name ("Red"), enable the single card, show "Tap the Red card".
+3. Three steps. Each: play the chord for the profile's chord length and wait for all of it, speak the colour name ("Red"), enable the single card, show "Tap the Red card". The card lock setting does not apply here: the child always hears the chord and then the colour.
 4. On tap: success chime, 800 ms, next step.
 5. After the third tap, one `sessions` row is written already closed: `status: 'completed'`, `endReason: 'target_reached'`, `scoredTrialCount: 3`, `plannedTrialCount: 3`, `sequence: []`, with `startedAt` from step 1.
 
@@ -54,16 +54,18 @@ Input is accepted only in `Awaiting` and `CorrectionTap`. `Ready` is a 350 ms in
 **Normal trial**
 
 ```
-Ready → Playing (chord plays; UI waits a hardcoded 2200 ms) → Awaiting
+Ready → Playing (chord starts; cards locked for inputLockMs) → Awaiting (chord may still be sounding)
   correct tap → Correct (chime, trial saved, 850 ms) → advance
   wrong tap   → trial saved with correctionIncomplete: true
               → Correcting (speak "That was <Colour>", 300 ms)
-              → PlayingCorrection (replay chord, 2200 ms)
+              → PlayingCorrection (replay chord; cards locked for inputLockMs)
               → CorrectionTap (only the target card is enabled)
   target tap  → same trial row re-put with correctionIncomplete: false → advance
 ```
 
-**Replay.** A replay button is available in `Awaiting` and `CorrectionTap`. It replays the chord, increments the trial's `replayCount`, and has no effect on scoring. Replays before and after a wrong answer are merged into one count.
+**A tap ends the chord.** Every accepted tap calls `audio.stopChord()` before the chime or the spoken correction, so with a lock shorter than the chord the child can answer mid-chord and the chord is cut off. Without a tap it plays its full length. Unmounting `Practice` also stops it.
+
+**Replay.** A replay button is available in `Awaiting` and `CorrectionTap`. It restarts the chord (cutting off one still sounding) and relocks the cards for `inputLockMs`. It increments the trial's `replayCount`, and has no effect on scoring. Replays before and after a wrong answer are merged into one count.
 
 **Persistence before UI.** `saveTrial` is awaited before the success pause and before `advanceTrial`. A trial is never advanced past without its row being written.
 
@@ -113,17 +115,14 @@ Sessions that finish normally go through `saveTrial`, which sets `completed` dir
 
 ## Timing constants
 
-These are duplicated between `audio.ts` and the components. Change them together.
-
 | What | Value | Where |
 |---|---|---|
-| Chord note hold | 1.5 s at velocity 0.65 | `audio.ts playChord` |
+| Chord hold | Per profile: 1.5, 2, 3 or 4 s (default 1.5 s), velocity 0.65 | `config.chordDurationMs` → `resolvePlaybackTiming` → `audio.playChord` |
+| Card lock after a chord starts | Per profile: 0.5, 1, 2 s or the whole chord (default whole chord); never longer than the chord | `config.inputLockMs` → `resolvePlaybackTiming` → `Practice.tsx` |
 | Sampler release | 0.15 s | `audio.ts` constructor |
-| UI wait after chord | 2200 ms | `Practice.tsx` (three places), `IntroMode.tsx` |
 | Pause after correct | 850 ms | `Practice.tsx` |
 | Pause after spoken label | 300 ms | `Practice.tsx` |
 | Inter-trial pause | 350 ms | `Practice.tsx advanceTrial` |
 | Intro pause after tap | 800 ms | `IntroMode.tsx` |
 | Idle timeout | 10 min | `db.ts` |
 
-`playChord` returns 2200 as a duration, but every caller ignores the return value and hardcodes the same literal.

@@ -16,6 +16,8 @@ import {
 import ParentGuide from './ParentGuide';
 import ProfileForm from './ProfileForm';
 import ProfileDot from './ProfileDot';
+import PlaybackTimingSettings from './PlaybackTimingSettings';
+import { resolvePlaybackTiming } from '../utils/playbackTiming';
 
 const secondaryButtonClass = 'w-full py-3 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 flex items-center justify-center space-x-2 rounded-xl font-bold text-xs transition-colors';
 const inlineFormClass = 'p-3.5 bg-slate-50 rounded-xl border border-slate-200/80';
@@ -73,6 +75,11 @@ export default function ParentDashboard({ profile, config, profiles, onExit, onS
 
   const setTrialsCount = async (count: number) => {
     await db.config.update(profileId, { trialsPerSession: count });
+  };
+
+  // `inputLockMs: undefined` deletes the field, which is what "whole chord" means.
+  const setPlaybackTiming = async (patch: Pick<AppConfig, 'chordDurationMs' | 'inputLockMs'>) => {
+    await db.config.update(profileId, patch);
   };
 
   const resetData = async () => {
@@ -362,6 +369,8 @@ export default function ParentDashboard({ profile, config, profiles, onExit, onS
             </div>
           </div>
 
+          <PlaybackTimingSettings config={config} onChange={setPlaybackTiming} />
+
           <div className="flex items-center justify-between p-3 bg-blue-50/60 rounded-xl border border-blue-100">
             <div>
               <span className="text-xs font-bold text-blue-950 block">Device Audio Test</span>
@@ -369,13 +378,15 @@ export default function ParentDashboard({ profile, config, profiles, onExit, onS
             </div>
             <button
               onClick={async () => {
+                // Plays at this profile's chord length, so the parent hears what the child will.
+                const { chordDurationMs } = resolvePlaybackTiming(config);
                 setIsPlayingTest(true);
                 await audio.init();
-                audio.playChord([60, 64, 67]); // C Major (Red)
+                audio.playChord([60, 64, 67], chordDurationMs); // C Major (Red)
                 setTimeout(() => {
                   audio.speak("Red");
                   setIsPlayingTest(false);
-                }, 1200);
+                }, chordDurationMs);
               }}
               disabled={isPlayingTest}
               className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 shadow-sm disabled:opacity-50 transition-colors"

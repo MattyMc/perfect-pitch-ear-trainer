@@ -23,7 +23,7 @@ Rules for changing this app without breaking the method or the data. Toolchain m
 
 ## Things that move together
 
-- Chord duration in `audio.ts` and the 2200 ms literals in `Practice.tsx` and `IntroMode.tsx`.
+- The chord-length and card-lock options in `src/utils/playbackTiming.ts` and the dashboard copy in `PlaybackTimingSettings.tsx` that explains them.
 - Session-status thresholds in `db.ts` and `trialsPerSession` options in the dashboard.
 - `defaultConfig()` in `db.ts`, which seeds every new profile (`createProfile`), every reset (`resetProfileData`), and the v3 migration fallback.
 - The advancement checklist in the dashboard, guide section 7, and decision D-022.
@@ -32,9 +32,9 @@ Rules for changing this app without breaking the method or the data. Toolchain m
 
 ## Verification
 
-There is no test framework, no ESLint, and no CI beyond the deploy workflow. `npm run lint` (a bare `tsc --noEmit`) is the whole automated check. `strict` is on with zero errors; keep it there without `any` or non-null assertions.
+`npm test` runs Vitest (jsdom, React Testing Library) over `src/**/*.test.{ts,tsx}`. The tests cover playback timing: `resolvePlaybackTiming`, `AudioEngine.playChord`/`stopChord` with Tone mocked, `Practice`'s card lock and tap-to-stop under fake timers with `db` and `audio` mocked, and the dashboard's timing controls. `npm run lint` (a bare `tsc --noEmit`) type-checks everything, tests included. `strict` is on with zero errors; keep it there without `any` or non-null assertions. There is no ESLint, and the deploy workflow runs lint but not the tests.
 
-Because there are no tests, verify behaviour by hand in a narrow portrait viewport (the app blanks in landscape). At minimum after a change to the practice loop: a correct answer, a wrong answer through the full correction, a replay, hold-to-exit mid-session, and a resume within ten minutes.
+The tests don't reach Dexie, real audio, or most screens, so still verify behaviour by hand in a narrow portrait viewport (the app blanks in landscape). At minimum after a change to the practice loop: a correct answer, a wrong answer through the full correction, a replay, hold-to-exit mid-session, and a resume within ten minutes.
 
 ## Updating the docs
 

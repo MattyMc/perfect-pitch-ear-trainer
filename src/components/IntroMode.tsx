@@ -6,7 +6,11 @@ import { db } from '../db';
 import HoldToExit from './HoldToExit';
 import { newId } from '../utils/id';
 
-export default function IntroMode({ profileId, chordId, onExit }: { profileId: string, chordId: string, onExit: () => void }) {
+/**
+ * Only the chord length applies here, not the card lock: the intro speaks the colour name after
+ * the chord and only then enables the card, so the child always hears both.
+ */
+export default function IntroMode({ profileId, chordId, chordDurationMs, onExit }: { profileId: string, chordId: string, chordDurationMs: number, onExit: () => void }) {
   const [step, setStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [statusText, setStatusText] = useState<'listening' | 'tap' | 'confirmed'>('listening');
@@ -61,6 +65,7 @@ export default function IntroMode({ profileId, chordId, onExit }: { profileId: s
     return () => {
       isMountedRef.current = false;
       clearTimeout(t);
+      audio.stopChord();
     };
   }, [chordId]);
 
@@ -76,9 +81,9 @@ export default function IntroMode({ profileId, chordId, onExit }: { profileId: s
     await audio.init();
     const chord = CHORDS_MAP.get(chordId)!;
     
-    // 1. Play acoustic piano chord (lasts 2.2 seconds)
-    audio.playChord(chord.midiNotes);
-    await new Promise(r => setTimeout(r, 2200));
+    // 1. Play acoustic piano chord for the whole configured length
+    audio.playChord(chord.midiNotes, chordDurationMs);
+    await new Promise(r => setTimeout(r, chordDurationMs));
     if (!isMountedRef.current) return;
 
     // 2. Speak color name (e.g. "Red")
