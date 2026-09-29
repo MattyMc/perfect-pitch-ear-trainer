@@ -34,7 +34,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit",
+    "lint": "npm run check:lockfile && tsc --noEmit",
+    "check:lockfile": "npm ci --dry-run --no-audit --no-fund --loglevel=error",
     "test": "vitest run",
     "test:watch": "vitest"
   },

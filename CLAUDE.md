@@ -10,7 +10,7 @@ Product behaviour, the method, the curriculum, and every product decision with i
 npm run dev      # Vite dev server on port 3001, bound to 0.0.0.0
 npm run build    # Production build to dist/
 npm run preview  # Serve the built dist/ (port 4173)
-npm run lint     # tsc --noEmit (type-checks the tests too)
+npm run lint     # lockfile check, then tsc --noEmit (type-checks the tests too)
 npm test         # Vitest, once; `npm run test:watch` to watch
 ```
 
@@ -19,6 +19,8 @@ npm test         # Vitest, once; `npm run test:watch` to watch
 **Node 22.12+ is required** (`.nvmrc` pins 24.11.0; `engines` declares `>=22.12.0`). `nvm use` picks up the `.nvmrc`. The floor comes from `@vitejs/plugin-react`, which declares `^20.19.0 || >=22.12.0`; `@tailwindcss/oxide` separately needs `>= 20`.
 
 This is not cosmetic. When npm decides your Node is too old for a package, it silently skips that package's platform binary, and every Vite command then dies with `Cannot find native binding` — a message that misleadingly blames [an npm optional-dependency bug](https://github.com/npm/cli/issues/4828). **If you hit that, check `node --version` before deleting lockfiles**, which is the advice the error itself gives and which will not help.
+
+**`npm install` can silently drop a lockfile entry that `npm ci` then demands.** It has happened twice: `@emnapi/wasi-threads`, an optional dependency of `@tailwindcss/oxide`'s wasm fallback, vanished from `package-lock.json` after a local install, and the Pages workflow died at `npm ci` before lint or build ran. `npm run lint` therefore starts with `check:lockfile` (`npm ci --dry-run`, under a second, installs nothing), so the mismatch fails locally instead of in CI. If it fails, restore the missing entry rather than regenerating the whole lockfile.
 
 Port 3001 is deliberate — 3000 is taken by a Rails app in this developer's setup.
 

@@ -32,7 +32,7 @@ Rules for changing this app without breaking the method or the data. Toolchain m
 
 ## Verification
 
-`npm test` runs Vitest (jsdom, React Testing Library) over `src/**/*.test.{ts,tsx}`. The tests cover playback timing: `resolvePlaybackTiming`, `AudioEngine.playChord`/`stopChord` with Tone mocked, `Practice`'s card lock and tap-to-stop under fake timers with `db` and `audio` mocked, and the dashboard's timing controls. `npm run lint` (a bare `tsc --noEmit`) type-checks everything, tests included. `strict` is on with zero errors; keep it there without `any` or non-null assertions. There is no ESLint, and the deploy workflow runs lint but not the tests.
+`npm test` runs Vitest (jsdom, React Testing Library) over `src/**/*.test.{ts,tsx}`. The tests cover playback timing: `resolvePlaybackTiming`, `AudioEngine.playChord`/`stopChord` with Tone mocked, `Practice`'s card lock and tap-to-stop under fake timers with `db` and `audio` mocked, and the dashboard's timing controls. `npm run lint` first checks that `package-lock.json` satisfies `npm ci` (`check:lockfile`, a dry run), then runs `tsc --noEmit` over everything, tests included. `strict` is on with zero errors; keep it there without `any` or non-null assertions. There is no ESLint, and the deploy workflow runs lint but not the tests.
 
 The tests don't reach Dexie, real audio, or most screens, so still verify behaviour by hand in a narrow portrait viewport (the app blanks in landscape). At minimum after a change to the practice loop: a correct answer, a wrong answer through the full correction, a replay, hold-to-exit mid-session, and a resume within ten minutes.
 
