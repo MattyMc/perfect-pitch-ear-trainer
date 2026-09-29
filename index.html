@@ -15,6 +15,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Perfect Pitch" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
+    <!-- Play through the iPhone's silent switch (Safari 16.4+). This must run before Tone.js
+         creates its audio context, which it does as soon as it loads, and a classic inline
+         script runs before any module script. See claimPlaybackAudioSession in src/audio.ts. -->
+    <script>if (navigator.audioSession) navigator.audioSession.type = 'playback';</script>
   </head>
   <body class="overscroll-none bg-slate-50">
     <div id="root"></div>

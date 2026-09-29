@@ -32,6 +32,25 @@ const PIANO_SAMPLES = {
 };
 const PIANO_BASE_URL = `${import.meta.env.BASE_URL}audio/piano/`;
 
+type AudioSessionNavigator = Navigator & { audioSession?: { type: string } };
+
+/**
+ * iOS Safari puts Web Audio in the 'ambient' audio session by default, which the silent switch
+ * mutes, so on a phone set to silent every chord would play as silence. 'playback', the category
+ * music apps use, plays through the switch. It also pauses other apps' audio, such as music, from
+ * the first tap (Tone keeps its context running from then on). A page cannot read the switch, so
+ * claiming the session is the only fix.
+ *
+ * The type belongs to the page, not to a context, and must be set before the first context is
+ * created. `index.html` does that, since Tone creates its context as soon as it loads, before any
+ * of this code runs. `rebuildContext` calls this again only defensively. `navigator.audioSession` is Safari-only (16.4+) and still a draft, so it is not in
+ * the DOM types and may be absent; elsewhere this does nothing.
+ */
+export function claimPlaybackAudioSession() {
+  const session = (navigator as AudioSessionNavigator).audioSession;
+  if (session) session.type = 'playback';
+}
+
 /** What `play()` managed: the chord started, or sound needs a tap first (nothing played). */
 export type PlayResult = 'played' | 'needs-tap';
 
@@ -122,6 +141,8 @@ export class AudioEngine {
     this.sampler?.dispose();
     this.sampler = null;
     this.unwatchContext();
+    // Defensive: index.html already claimed it for the page, but it costs nothing to be sure.
+    claimPlaybackAudioSession();
     Tone.setContext(new Tone.Context(), true);
     this.stale = false;
     this.watchContext();

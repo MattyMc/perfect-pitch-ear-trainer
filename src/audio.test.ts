@@ -4,6 +4,8 @@ const tone = vi.hoisted(() => {
   /** Stands in for Tone.Context: a state, a resume we can make succeed or hang, and statechange. */
   class FakeContext {
     state = 'suspended';
+    /** Safari's audio session type when this context was built; it must be claimed first. */
+    audioSessionTypeAtCreation = (navigator as { audioSession?: { type: string } }).audioSession?.type;
     /** When false, resume() never settles — the iOS "stuck" case. */
     resumable = true;
     private handlers: Array<(state: string) => void> = [];
@@ -73,7 +75,7 @@ const tone = vi.hoisted(() => {
 
 vi.mock('tone', () => tone.module);
 
-import { AudioEngine, AudioNeedsGestureError, RESUME_TIMEOUT_MS, audio } from './audio';
+import { AudioEngine, AudioNeedsGestureError, RESUME_TIMEOUT_MS, audio, claimPlaybackAudioSession } from './audio';
 
 // The module's own singleton listens on window too; silence it so only each test's engine acts.
 audio.dispose();
@@ -186,6 +188,19 @@ describe('AudioEngine recovery after the app was in the background', () => {
     for (const note of Object.keys(first)) expect(rebuilt[note]).toBe(first[note]);
   });
 
+  it('claims the playback audio session before creating the new context', () => {
+    // Stands in for Safari's navigator.audioSession; 'playback' plays through the silent switch.
+    const session = { type: 'auto' };
+    Object.defineProperty(navigator, 'audioSession', { value: session, configurable: true });
+    try {
+      returnToForeground();
+      tap();
+      expect(tone.state.current.audioSessionTypeAtCreation).toBe('playback');
+    } finally {
+      Reflect.deleteProperty(navigator, 'audioSession');
+    }
+  });
+
   it('rebuilds after the context changes state on its own, as on an iOS interruption', () => {
     tone.state.current.changeState('interrupted');
     tap();
@@ -280,5 +295,24 @@ describe('AudioEngine recovery after the app was in the background', () => {
     returnToForeground();
     tap();
     expect(tone.module.setContext).not.toHaveBeenCalled();
+  });
+});
+
+describe('claimPlaybackAudioSession', () => {
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'audioSession');
+  });
+
+  it("sets Safari's audio session to playback, so the silent switch does not mute the chords", () => {
+    const session = { type: 'auto' };
+    Object.defineProperty(navigator, 'audioSession', { value: session, configurable: true });
+
+    claimPlaybackAudioSession();
+    expect(session.type).toBe('playback');
+  });
+
+  it('does nothing in browsers without the Audio Session API', () => {
+    expect('audioSession' in navigator).toBe(false);
+    expect(() => claimPlaybackAudioSession()).not.toThrow();
   });
 });
