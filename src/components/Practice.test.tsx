@@ -41,12 +41,13 @@ vi.mock('../utils/scheduler', () => ({
 
 import Practice from './Practice';
 import { CHORDS_MAP } from '../chords';
+import type { ChordLabelStyle } from '../db';
 
 const RED_NOTES = CHORDS_MAP.get('red')?.midiNotes;
 /** Practice waits this long after mounting before the first chord. */
 const FIRST_CHORD_DELAY_MS = 400;
 
-function renderPractice(timing: { chordDurationMs: number; inputLockMs: number }) {
+function renderPractice(timing: { chordDurationMs: number; inputLockMs: number }, chordLabels: ChordLabelStyle = 'off') {
   const view = render(
     <Practice
       profileId="p1"
@@ -54,6 +55,7 @@ function renderPractice(timing: { chordDurationMs: number; inputLockMs: number }
       trialsPerSession={20}
       chordDurationMs={timing.chordDurationMs}
       inputLockMs={timing.inputLockMs}
+      chordLabels={chordLabels}
       onExit={() => {}}
     />,
   );
@@ -231,5 +233,38 @@ describe('Practice playback timing', () => {
 
     unmount();
     expect(mocks.audio.stopChord).toHaveBeenCalled();
+  });
+});
+
+describe('Practice chord names', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  it('leaves the cards blank by default', async () => {
+    const { card } = renderPractice({ chordDurationMs: 1500, inputLockMs: 500 });
+    await advance(FIRST_CHORD_DELAY_MS);
+    expect(card('red').textContent).toBe('');
+    expect(card('yellow').textContent).toBe('');
+  });
+
+  it('prints the basic chord name, without the bass note', async () => {
+    const { card } = renderPractice({ chordDurationMs: 1500, inputLockMs: 500 }, 'basic');
+    await advance(FIRST_CHORD_DELAY_MS);
+    expect(card('red').textContent).toBe('C');
+    expect(card('yellow').textContent).toBe('F');
+  });
+
+  it('prints the full chord name, with the bass note of an inversion', async () => {
+    const { card } = renderPractice({ chordDurationMs: 1500, inputLockMs: 500 }, 'full');
+    await advance(FIRST_CHORD_DELAY_MS);
+    expect(card('red').textContent).toBe('C');
+    expect(card('yellow').textContent).toBe('F/C');
   });
 });

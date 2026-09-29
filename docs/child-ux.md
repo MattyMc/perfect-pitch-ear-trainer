@@ -55,6 +55,8 @@ The decision log asks for a 72 px floor with 88 to 112 px preferred. The build h
 
 Checked 9 September 2026. No note name, chord name, or the word "chord" appears in any child-facing rendered or spoken text. Colour words are the only identity, and they appear only where the method intends: during intro and during correction. Note names and voicings appear only in the parent guide behind the parent gate. The browser tab title ("Perfect Pitch Ear Training for Kids: Eguchi Method | Matt McInnis") is visible in a browser but hidden in standalone mode; the home-screen label is "Perfect Pitch". Neither names a note or chord.
 
+The one exception is opt-in: with **Chord names on cards** set to Basic or Full (D-038, off by default), each card carries its chord name. Nothing is ever spoken differently.
+
 ## Feedback the child sees that the decision log did not intend
 
 D-033 says analytics are adult-only. The child currently sees a numeric score, a percentage, an evaluative headline, a per-chord "Practice More" list, and red dots for each error during the session. None of it is punitive or competitive, but it is evaluative and it is not what the log decided. Recorded as a contradiction in [decision-log.md](decision-log.md); changing it is a product decision.

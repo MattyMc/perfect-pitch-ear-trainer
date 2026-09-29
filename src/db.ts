@@ -4,6 +4,11 @@ import { newId } from './utils/id';
 export interface ChordDefinition {
   id: string;
   order: number;
+  /**
+   * Chord symbol, slash notation for inversions ("F/C"). The basic name is the part before the
+   * slash ("F"). Shown to the child only when the parent turns on `chordLabels`.
+   */
+  chordName: string;
   notesWithOctave: string;
   inversionDescription: string;
   midiNotes: number[];
@@ -103,7 +108,16 @@ export interface AppConfig {
    */
   chordDurationMs?: number;
   inputLockMs?: number | null;
+  /**
+   * Print each chord's name on its answer card: `'basic'` is the chord alone ("F"), `'full'`
+   * adds the bass note of an inversion ("F/C"). Absent means off, so rows written before it
+   * existed need no migration. A deliberate exception to the rule that the child sees only
+   * colours; see decision log D-038.
+   */
+  chordLabels?: ChordLabelStyle;
 }
+
+export type ChordLabelStyle = 'off' | 'basic' | 'full';
 
 export const META_ID = 'app';
 export const PROFILE_NAME_MAX_LENGTH = 24;

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Ear, RotateCw, Check } from 'lucide-react';
-import { CHORDS_MAP } from '../chords';
+import { CHORDS_MAP, chordLabel, labelInkFor } from '../chords';
 import { audio, type PlayResult } from '../audio';
-import { db, checkAndCloseStaleSessions, getResumeableSession, endSession, recordTrial } from '../db';
+import { db, type ChordLabelStyle, checkAndCloseStaleSessions, getResumeableSession, endSession, recordTrial } from '../db';
 import { generateSessionSequence } from '../utils/scheduler';
 import { newId } from '../utils/id';
 import HoldToExit from './HoldToExit';
@@ -17,12 +17,14 @@ interface PracticeProps {
   chordDurationMs: number;
   /** How long the cards stay disabled after a chord starts; never longer than the chord. */
   inputLockMs: number;
+  /** Whether and how to print each chord's name on its card. A parent setting, off by default. */
+  chordLabels: ChordLabelStyle;
   onExit: () => void;
 }
 
 type TrialState = 'Initializing' | 'NeedsResumeTap' | 'Ready' | 'Playing' | 'Awaiting' | 'Correct' | 'Correcting' | 'PlayingCorrection' | 'CorrectionTap' | 'Done';
 
-export default function Practice({ profileId, activeChordIds, trialsPerSession, chordDurationMs, inputLockMs, onExit }: PracticeProps) {
+export default function Practice({ profileId, activeChordIds, trialsPerSession, chordDurationMs, inputLockMs, chordLabels, onExit }: PracticeProps) {
   const [sequence, setSequence] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [trialState, setTrialState] = useState<TrialState>('Initializing');
@@ -479,6 +481,8 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
             }
             
             const isDisabled = isInputLocked || (isCorrectionPhase && !isTarget);
+            const showsPointer = trialState === 'CorrectionTap' && isTarget;
+            const label = chordLabel(chord, chordLabels);
             if (isDisabled) {
                pointerEvents = "pointer-events-none";
             }
@@ -492,7 +496,15 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
                 className={`relative overflow-hidden rounded-[2rem] shadow-sm transition-all duration-300 ${!isDisabled ? 'active:scale-95' : ''} ${opacity} ${scale} ${pointerEvents} ${extraStyles}`}
                 style={{ backgroundColor: chord.colorHex, minHeight: '72px' }}
               >
-                {(trialState === 'CorrectionTap' && isTarget) && (
+                {label && !showsPointer && (
+                   <span
+                     className="absolute inset-0 flex items-center justify-center text-3xl font-black tracking-tight"
+                     style={{ color: labelInkFor(chord.colorHex) }}
+                   >
+                     {label}
+                   </span>
+                )}
+                {showsPointer && (
                    <div className="absolute inset-0 flex items-center justify-center">
                       <div className="w-16 h-16 bg-white/40 rounded-full flex items-center justify-center backdrop-blur-sm shadow-inner animate-bounce">
                          <span className="text-3xl relative top-1 drop-shadow-sm">👆</span>

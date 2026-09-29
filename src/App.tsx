@@ -92,6 +92,7 @@ export default function App() {
           profileId={profile.id}
           chordId={config.activeChordIds[0]}
           chordDurationMs={resolvePlaybackTiming(config).chordDurationMs}
+          chordLabels={config.chordLabels ?? 'off'}
           onExit={() => setView('home')}
         />
       ) : (
@@ -100,6 +101,7 @@ export default function App() {
           activeChordIds={config.activeChordIds}
           trialsPerSession={config.trialsPerSession}
           {...resolvePlaybackTiming(config)}
+          chordLabels={config.chordLabels ?? 'off'}
           onExit={() => setView('home')}
         />
       );

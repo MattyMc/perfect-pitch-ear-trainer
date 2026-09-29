@@ -29,6 +29,7 @@ vi.mock('../db', () => ({ db: { sessions: { add: vi.fn(async () => {}) } } }));
 
 import IntroMode from './IntroMode';
 import { CHORDS_MAP } from '../chords';
+import type { ChordLabelStyle } from '../db';
 
 const RED_NOTES = CHORDS_MAP.get('red')?.midiNotes;
 const INSTRUCTION = 'Listen to the sound, then tap the card.';
@@ -36,7 +37,8 @@ const INSTRUCTION = 'Listen to the sound, then tap the card.';
 const FIRST_CHORD_DELAY_MS = 300 + 400;
 
 const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
-const renderIntro = () => render(<IntroMode profileId="p1" chordId="red" chordDurationMs={3000} onExit={() => {}} />);
+const renderIntro = (chordLabels: ChordLabelStyle = 'off') =>
+  render(<IntroMode profileId="p1" chordId="red" chordDurationMs={3000} chordLabels={chordLabels} onExit={() => {}} />);
 
 /** Renders the intro with sound that needs a tap, and waits for the Continue screen. */
 async function renderNeedingTap() {
@@ -87,5 +89,16 @@ describe('IntroMode', () => {
 
     expect(getByText('Continue')).toBeTruthy();
     expect(getByRole('button', { name: 'Hold to exit' })).toBeTruthy();
+  });
+
+  it('prints the chord name on the card only when turned on', async () => {
+    const { queryByText } = renderIntro();
+    await advance(FIRST_CHORD_DELAY_MS);
+    expect(queryByText('C')).toBeNull();
+    cleanup();
+
+    const on = renderIntro('full');
+    await advance(FIRST_CHORD_DELAY_MS);
+    expect(on.getByText('C')).toBeTruthy();
   });
 });

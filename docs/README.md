@@ -53,7 +53,7 @@ These hold in the current build and should not be changed without revising the d
 - The first answer determines the trial's accuracy. A correction never rewrites it.
 - A wrong answer gets an immediate, neutral spoken label, a replay, and a required tap on the correct card.
 - Advancement is never automatic. The parent introduces every new chord.
-- The child never sees a note name or chord name. Only colour names appear or are spoken.
+- By default the child never sees a note name or chord name; only colour names appear or are spoken. A parent can turn on chord names on the cards (D-038).
 - No advertising, third-party analytics, leaderboards, punitive feedback, adaptive drilling, or microphone use.
 
 ## Where the spec and the code still disagree

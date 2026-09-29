@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { CHORDS_MAP } from '../chords';
+import { CHORDS_MAP, chordLabel, labelInkFor } from '../chords';
 import { audio } from '../audio';
 import { Check, Ear } from 'lucide-react';
-import { db } from '../db';
+import { db, type ChordLabelStyle } from '../db';
 import HoldToExit from './HoldToExit';
 import ResumePrompt from './ResumePrompt';
 import { newId } from '../utils/id';
@@ -11,7 +11,7 @@ import { newId } from '../utils/id';
  * Only the chord length applies here, not the card lock: the intro speaks the colour name after
  * the chord and only then enables the card, so the child always hears both.
  */
-export default function IntroMode({ profileId, chordId, chordDurationMs, onExit }: { profileId: string, chordId: string, chordDurationMs: number, onExit: () => void }) {
+export default function IntroMode({ profileId, chordId, chordDurationMs, chordLabels, onExit }: { profileId: string, chordId: string, chordDurationMs: number, chordLabels: ChordLabelStyle, onExit: () => void }) {
   const [step, setStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [statusText, setStatusText] = useState<'listening' | 'tap' | 'confirmed'>('listening');
@@ -122,6 +122,7 @@ export default function IntroMode({ profileId, chordId, chordDurationMs, onExit 
   };
 
   const chord = CHORDS_MAP.get(chordId)!;
+  const label = chordLabel(chord, chordLabels);
 
   if (resumeStep !== null) {
     return (
@@ -189,7 +190,7 @@ export default function IntroMode({ profileId, chordId, chordDurationMs, onExit 
         <button
           onClick={handleTap}
           disabled={isPlaying}
-          className={`w-full max-w-[280px] aspect-square rounded-[3rem] shadow-xl transition-all duration-300 ${
+          className={`w-full max-w-[280px] aspect-square rounded-[3rem] flex items-center justify-center shadow-xl transition-all duration-300 ${
             isPlaying 
               ? statusText === 'confirmed'
                 ? 'opacity-100 scale-105 ring-4 ring-green-400'
@@ -197,7 +198,13 @@ export default function IntroMode({ profileId, chordId, chordDurationMs, onExit 
               : 'opacity-100 scale-100 active:scale-95 cursor-pointer'
           }`}
           style={{ backgroundColor: chord.colorHex }}
-        />
+        >
+          {label && (
+            <span className="text-7xl font-black tracking-tight" style={{ color: labelInkFor(chord.colorHex) }}>
+              {label}
+            </span>
+          )}
+        </button>
       </div>
     </div>
   );

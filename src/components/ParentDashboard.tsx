@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  db, Profile, AppConfig, completedSessionsTodayQuery, recentTrialsQuery,
+  db, Profile, AppConfig, type ChordLabelStyle, completedSessionsTodayQuery, recentTrialsQuery,
   createProfile, setActiveProfile, updateProfile, deleteProfile, resetProfileData, setOnboardingCompleted,
   suggestProfileColour,
 } from '../db';
@@ -21,6 +21,12 @@ import { resolvePlaybackTiming } from '../utils/playbackTiming';
 
 const secondaryButtonClass = 'w-full py-3 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 flex items-center justify-center space-x-2 rounded-xl font-bold text-xs transition-colors';
 const inlineFormClass = 'p-3.5 bg-slate-50 rounded-xl border border-slate-200/80';
+
+const CHORD_LABEL_OPTIONS: { style: ChordLabelStyle; text: string }[] = [
+  { style: 'off', text: 'Off' },
+  { style: 'basic', text: 'Basic: F' },
+  { style: 'full', text: 'Full: F/C' },
+];
 
 interface ParentDashboardProps {
   profile: Profile;
@@ -79,6 +85,11 @@ export default function ParentDashboard({ profile, config, profiles, onExit, onS
 
   const setPlaybackTiming = async (patch: Pick<AppConfig, 'chordDurationMs' | 'inputLockMs'>) => {
     await db.config.update(profileId, patch);
+  };
+
+  const chordLabels = config.chordLabels ?? 'off';
+  const setChordLabels = async (style: ChordLabelStyle) => {
+    await db.config.update(profileId, { chordLabels: style });
   };
 
   const resetData = async () => {
@@ -369,6 +380,32 @@ export default function ParentDashboard({ profile, config, profiles, onExit, onS
           </div>
 
           <PlaybackTimingSettings config={config} onChange={setPlaybackTiming} />
+
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5">
+            <div>
+              <span id="chord-names-label" className="text-xs font-bold text-slate-800 block">Chord names on cards</span>
+              <span className="text-[11px] text-slate-500">The method uses colours only; names are an optional aid</span>
+            </div>
+            <div role="group" aria-labelledby="chord-names-label" className="grid grid-cols-3 gap-1.5">
+              {CHORD_LABEL_OPTIONS.map(({ style, text }) => (
+                <button
+                  key={style}
+                  aria-pressed={chordLabels === style}
+                  onClick={() => setChordLabels(style)}
+                  className={`py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                    chordLabels === style
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white border border-slate-200 text-slate-700'
+                  }`}
+                >
+                  {text}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Basic shows just the chord, so some cards share a name (Red, Orange and Brown are all C). Full adds the bass note of an inversion (C/E, C/G), so every card has its own name.
+            </p>
+          </div>
 
           <div className="flex items-center justify-between p-3 bg-blue-50/60 rounded-xl border border-blue-100">
             <div>
