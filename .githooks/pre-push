@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Runs `npm run verify` (lockfile check, type-check, tests, build) against each commit being
-# pushed, so a push that would fail the Pages workflow fails here instead.
+# Runs `npm run verify` (lockfile check, type-check, tests, build) against the commit at the tip
+# of each ref being pushed (the commit that deploys), so a push that would fail the Pages
+# workflow fails here instead. Intermediate commits aren't built.
 #
 # It checks the pushed commit in a throwaway worktree, not the working tree: uncommitted edits
 # can't make it pass, and a new file you forgot to `git add` makes it fail, as it would in CI.
@@ -22,9 +23,10 @@ if [ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]; then
   nvm use --silent "$(cat "$repo_root/.nvmrc")" >/dev/null ||
     { echo "pre-push: nvm could not switch to the Node in .nvmrc (try: nvm install)" >&2; exit 1; }
 fi
-node_major="$(node -p 'process.versions.node.split(".")[0]')"
-if [ "$node_major" -lt 22 ]; then
-  echo "pre-push: Node $(node --version) is too old for this project (see .nvmrc)." >&2
+# The floor is package.json's engines (>=22.12.0); below it Vite dies with a misleading
+# "Cannot find native binding".
+if ! node -e 'const [a, b] = process.versions.node.split(".").map(Number); process.exit(a > 22 || (a === 22 && b >= 12) ? 0 : 1)'; then
+  echo "pre-push: Node $(node --version) is too old for this project; it needs 22.12 or later (see .nvmrc)." >&2
   exit 1
 fi
 
@@ -48,7 +50,8 @@ while read -r _local_ref local_sha _remote_ref _remote_sha; do
   git -C "$repo_root" worktree add --detach --quiet "$worktree" "$local_sha"
   ln -s "$repo_root/node_modules" "$worktree/node_modules"
 
-  if ! (cd "$worktree" && npm run --silent verify); then
+  # stdin is git's list of refs; keep verify's processes from reading the rest of it.
+  if ! (cd "$worktree" && npm run --silent verify) < /dev/null; then
     echo "" >&2
     echo "pre-push: verify failed for $local_sha, so nothing was pushed." >&2
     echo "pre-push: fix it, or push anyway with: git push --no-verify" >&2

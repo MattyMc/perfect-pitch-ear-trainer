@@ -380,8 +380,10 @@ export default function ParentDashboard({ profile, config, profiles, onExit, onS
                 // Plays at this profile's chord length, so the parent hears what the child will.
                 const { chordDurationMs } = resolvePlaybackTiming(config);
                 setIsPlayingTest(true);
-                await audio.init();
-                audio.playChord([60, 64, 67], chordDurationMs); // C Major (Red)
+                if ((await audio.play([60, 64, 67], chordDurationMs)) === 'needs-tap') { // C Major (Red)
+                  setIsPlayingTest(false);
+                  return;
+                }
                 setTimeout(() => {
                   audio.speak("Red");
                   setIsPlayingTest(false);

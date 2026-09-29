@@ -8,7 +8,7 @@ Bugs and inconsistencies confirmed in the code on 9 September 2026. None is fixe
 
 2. **Advancement accuracy window spans levels.** The dashboard takes the last 100 trials globally, so trials from before the most recent `addChord` count toward the current level's 95%. The guide also promises a stricter rule (100 consecutive correct) than the dashboard computes. See decision log D-022.
 
-3. **Unhandled audio-load failures outside `Practice`.** `IntroMode`, `ChildHome`, `FirstRunOnboarding`, `ParentDashboard`, and `ParentGuide` call `audio.init()` without try/catch. `Practice` is the only caller with an error screen. `IntroMode` would sit on its listening indicator indefinitely.
+3. **Unhandled audio-load failures outside `Practice`.** `IntroMode`, `ParentDashboard`, and `ParentGuide` call `audio.play()` without try/catch. `Practice` is the only caller with an error screen. `IntroMode` would sit on its listening indicator indefinitely.
 
 4. **`correctionTapCount` is dead.** Non-target cards are disabled during `CorrectionTap`, so the increment never runs and the field is always 0.
 

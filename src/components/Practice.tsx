@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { Ear, RotateCw, Check } from 'lucide-react';
 import { CHORDS_MAP } from '../chords';
-import { audio, AudioNeedsGestureError } from '../audio';
+import { audio, type PlayResult } from '../audio';
 import { db, checkAndCloseStaleSessions, getResumeableSession, endSession, recordTrial } from '../db';
 import { generateSessionSequence } from '../utils/scheduler';
 import { newId } from '../utils/id';
 import HoldToExit from './HoldToExit';
 import PracticeDone from './PracticeDone';
+import ResumePrompt from './ResumePrompt';
 
 interface PracticeProps {
   profileId: string;
@@ -119,71 +120,63 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
   const currentChordId = sequence[currentIndex];
   const currentChord = currentChordId ? CHORDS_MAP.get(currentChordId) : null;
 
+  /** Plays a chord at the profile's length. Resolves 'failed' after showing the audio error. */
+  const playOrReport = async (midiNotes: number[]): Promise<PlayResult | 'failed'> => {
+    try {
+      return await audio.play(midiNotes, chordDurationMs);
+    } catch (err) {
+      if (isMountedRef.current) setAudioError(err instanceof Error ? err.message : 'Audio failed to load');
+      return 'failed';
+    }
+  };
+
   const startTrial = async (chordId: string, sid = sessionId) => {
     if (!isMountedRef.current) return;
-    
+    const chord = CHORDS_MAP.get(chordId);
+    if (!chord) return;
+
     setTrialState('Playing');
     isProcessingRef.current = true;
     updateActivity(sid);
 
-    try {
-      await audio.init();
-    } catch (err: any) {
-      if (isMountedRef.current) {
-        // The sound needs a tap to start again (e.g. the app was reopened from the background):
-        // show Continue, whose tap rebuilds the audio, rather than playing into silence.
-        if (err instanceof AudioNeedsGestureError) setTrialState('NeedsResumeTap');
-        else setAudioError(err.message || 'Audio failed to load');
-      }
-      isProcessingRef.current = false;
-      return;
-    }
-    
-    const chord = CHORDS_MAP.get(chordId);
-    if (chord) {
-      // 1. Play the chord, holding the cards for the input lock. The chord keeps sounding
-      // after the lock ends unless a tap cuts it off.
-      audio.playChord(chord.midiNotes, chordDurationMs);
+    const result = await playOrReport(chord.midiNotes);
+    if (!isMountedRef.current) return;
+    if (result === 'played') {
+      // Hold the cards for the input lock. The chord keeps sounding after the lock ends unless
+      // a tap cuts it off.
       await new Promise(r => setTimeout(r, inputLockMs));
       if (!isMountedRef.current) return;
-
-      // 2. Open answering window
       setTrialState('Awaiting');
-      isProcessingRef.current = false;
+    } else if (result === 'needs-tap') {
+      // The sound needs a tap to start again (e.g. the app was reopened from the background):
+      // show Continue, whose tap rebuilds the audio, rather than playing into silence.
+      setTrialState('NeedsResumeTap');
     }
+    isProcessingRef.current = false;
   };
 
   const handleReplay = async () => {
-    if ((trialState !== 'Awaiting' && trialState !== 'CorrectionTap') || !currentChordId || !isMountedRef.current || isProcessingRef.current) {
+    const chord = currentChordId ? CHORDS_MAP.get(currentChordId) : undefined;
+    if ((trialState !== 'Awaiting' && trialState !== 'CorrectionTap') || !chord || !isMountedRef.current || isProcessingRef.current) {
       return;
     }
 
     isProcessingRef.current = true;
     updateActivity();
-    setReplayCount(prev => prev + 1);
     const prevState = trialState;
     setTrialState(prevState === 'Awaiting' ? 'Playing' : 'PlayingCorrection');
 
-    try {
-      await audio.init();
-    } catch (err: any) {
-      // Replay is itself a tap, so a gesture error just means "press it again".
-      if (isMountedRef.current && !(err instanceof AudioNeedsGestureError)) setAudioError(err.message || 'Audio failed to load');
-      setTrialState(prevState);
-      isProcessingRef.current = false;
-      return;
-    }
-
-    const chord = CHORDS_MAP.get(currentChordId);
-    if (chord) {
-      audio.playChord(chord.midiNotes, chordDurationMs);
+    const result = await playOrReport(chord.midiNotes);
+    if (!isMountedRef.current) return;
+    if (result === 'played') {
+      // Counted only when it played, so a replay the child never heard isn't saved.
+      setReplayCount(prev => prev + 1);
       await new Promise(r => setTimeout(r, inputLockMs));
       if (!isMountedRef.current) return;
-      setTrialState(prevState);
-      isProcessingRef.current = false;
-    } else {
-      isProcessingRef.current = false;
     }
+    // Replay is itself a tap, so 'needs-tap' just means "press it again".
+    setTrialState(prevState);
+    isProcessingRef.current = false;
   };
 
   /**
@@ -300,11 +293,21 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
         await new Promise(r => setTimeout(r, 300));
         if (!isMountedRef.current) return;
 
-        // 2. Replay correct chord
+        // 2. Replay correct chord. The wrong tap may have just rebuilt the audio (after a return
+        // from the background); play() waits until the piano is ready. If sound needs another
+        // tap, skip the replay rather than show Continue, which would restart the trial and let
+        // the next tap count as a first answer. Replay is itself a tap and can bring it back.
         setTrialState('PlayingCorrection');
-        audio.playChord(correctChord.midiNotes, chordDurationMs);
-        await new Promise(r => setTimeout(r, inputLockMs));
+        const result = await playOrReport(correctChord.midiNotes);
         if (!isMountedRef.current) return;
+        if (result === 'failed') {
+          isProcessingRef.current = false;
+          return;
+        }
+        if (result === 'played') {
+          await new Promise(r => setTimeout(r, inputLockMs));
+          if (!isMountedRef.current) return;
+        }
 
         // 3. Allow correction tap on target card
         setTrialState('CorrectionTap');
@@ -351,20 +354,7 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
   }
 
   if (trialState === 'NeedsResumeTap') {
-    return (
-      <div className="flex flex-col items-center justify-center h-full space-y-8 bg-slate-50">
-        <h2 className="text-3xl font-bold text-slate-800">Ready to continue?</h2>
-        <button 
-          onClick={() => {
-            if (!isMountedRef.current) return;
-            startTrial(sequence[currentIndex], sessionId);
-          }}
-          className="px-12 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-full text-2xl font-bold shadow-lg active:scale-95 transition-transform"
-        >
-          Continue
-        </button>
-      </div>
-    );
+    return <ResumePrompt onExit={handleExit} onContinue={() => startTrial(sequence[currentIndex], sessionId)} />;
   }
 
   if (trialState === 'Done') {

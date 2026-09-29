@@ -397,10 +397,7 @@ export default function ParentGuide({
                     return (
                       <div
                         key={c.id}
-                        onClick={async () => {
-                          await audio.init();
-                          audio.playChord(c.midiNotes, resolvePlaybackTiming(config).chordDurationMs);
-                        }}
+                        onClick={() => audio.play(c.midiNotes, resolvePlaybackTiming(config).chordDurationMs)}
                         className={`flex items-center justify-between p-2.5 rounded-xl text-xs border cursor-pointer active:scale-[0.99] transition-all ${
                           isActive ? 'bg-blue-50/70 border-blue-200 hover:bg-blue-100/50' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'
                         }`}

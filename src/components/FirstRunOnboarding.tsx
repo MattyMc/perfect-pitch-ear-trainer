@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Ear, Palette, Sparkles, Clock, CheckCircle2, Music2, ArrowRight } from 'lucide-react';
 import { setOnboardingCompleted } from '../db';
-import { audio } from '../audio';
 
 interface FirstRunOnboardingProps {
   /** The active child's name, used to personalise the copy. */
@@ -13,8 +12,6 @@ export default function FirstRunOnboarding({ profileName, onComplete }: FirstRun
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
   const finish = async (action: 'quickstart' | 'guide' | 'practice') => {
-    // Unlocks audio during the tap. If the sound needs another tap, practice asks for it.
-    await audio.init().catch(() => {});
     await setOnboardingCompleted(true);
     onComplete(action);
   };

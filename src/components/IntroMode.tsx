@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { CHORDS_MAP } from '../chords';
-import { audio, AudioNeedsGestureError } from '../audio';
+import { audio } from '../audio';
 import { Check, Ear } from 'lucide-react';
 import { db } from '../db';
 import HoldToExit from './HoldToExit';
+import ResumePrompt from './ResumePrompt';
 import { newId } from '../utils/id';
 
 /**
@@ -14,7 +15,7 @@ export default function IntroMode({ profileId, chordId, chordDurationMs, onExit 
   const [step, setStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [statusText, setStatusText] = useState<'listening' | 'tap' | 'confirmed'>('listening');
-  // The step to rerun once the sound has been unlocked by a tap on Continue.
+  // The step to rerun once a tap on Continue has unlocked the sound.
   const [resumeStep, setResumeStep] = useState<number | null>(null);
   const isMountedRef = useRef(true);
   const isProcessingRef = useRef(false);
@@ -42,25 +43,9 @@ export default function IntroMode({ profileId, chordId, chordDurationMs, onExit 
   useEffect(() => {
     isMountedRef.current = true;
     startedAtRef.current = Date.now();
-    
-    const initIntro = async () => {
-      if (!(await initAudioOrAskForTap(0))) return;
-      
-      // Step 1: Spoken intro prompt
-      setStatusText('listening');
-      setIsPlaying(true);
-      await audio.speak("Listen to the sound, then tap the card.");
-      if (!isMountedRef.current) return;
-      
-      // Brief pause before first chord
-      await new Promise(r => setTimeout(r, 400));
-      if (!isMountedRef.current) return;
-      
-      runStep(0);
-    };
 
     const t = setTimeout(() => {
-      initIntro();
+      runStep(0);
     }, 300);
 
     return () => {
@@ -69,24 +54,6 @@ export default function IntroMode({ profileId, chordId, chordDurationMs, onExit 
       audio.stopChord();
     };
   }, [chordId]);
-
-  /**
-   * Resolves true once the sound is ready. When it needs a tap to start again (the app was
-   * reopened from the background), shows Continue for `stepToResume` and resolves false.
-   */
-  const initAudioOrAskForTap = async (stepToResume: number) => {
-    try {
-      await audio.init();
-    } catch (err) {
-      if (!(err instanceof AudioNeedsGestureError)) throw err;
-      if (isMountedRef.current) {
-        setResumeStep(stepToResume);
-        isProcessingRef.current = false;
-      }
-      return false;
-    }
-    return isMountedRef.current;
-  };
 
   const runStep = async (currentStep: number) => {
     if (!isMountedRef.current) return;
@@ -97,11 +64,22 @@ export default function IntroMode({ profileId, chordId, chordDurationMs, onExit 
     setIsPlaying(true);
     setStatusText('listening');
 
-    if (!(await initAudioOrAskForTap(currentStep))) return;
+    if (currentStep === 0) {
+      // The intro opens with a spoken instruction and a brief pause before the first chord.
+      await audio.speak("Listen to the sound, then tap the card.");
+      if (!isMountedRef.current) return;
+      await new Promise(r => setTimeout(r, 400));
+      if (!isMountedRef.current) return;
+    }
+
     const chord = CHORDS_MAP.get(chordId)!;
-    
-    // 1. Play acoustic piano chord for the whole configured length
-    audio.playChord(chord.midiNotes, chordDurationMs);
+
+    // 1. Play acoustic piano chord for the whole configured length. If the sound needs a tap to
+    // start again (the app was reopened from the background), show Continue, which reruns the step.
+    if ((await audio.play(chord.midiNotes, chordDurationMs)) === 'needs-tap') {
+      if (isMountedRef.current) setResumeStep(currentStep);
+      return;
+    }
     await new Promise(r => setTimeout(r, chordDurationMs));
     if (!isMountedRef.current) return;
 
@@ -147,19 +125,13 @@ export default function IntroMode({ profileId, chordId, chordDurationMs, onExit 
 
   if (resumeStep !== null) {
     return (
-      <div className="flex flex-col items-center justify-center h-full space-y-8 bg-slate-50">
-        <h2 className="text-3xl font-bold text-slate-800">Ready to continue?</h2>
-        <button
-          onClick={() => {
-            const stepToRun = resumeStep;
-            setResumeStep(null);
-            runStep(stepToRun);
-          }}
-          className="px-12 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-full text-2xl font-bold shadow-lg active:scale-95 transition-transform"
-        >
-          Continue
-        </button>
-      </div>
+      <ResumePrompt
+        onExit={onExit}
+        onContinue={() => {
+          setResumeStep(null);
+          runStep(resumeStep);
+        }}
+      />
     );
   }
 

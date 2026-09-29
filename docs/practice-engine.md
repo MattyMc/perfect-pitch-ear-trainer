@@ -58,14 +58,14 @@ Ready → Playing (chord starts; cards locked for inputLockMs) → Awaiting (cho
   correct tap → Correct (chime, trial saved, 850 ms) → advance
   wrong tap   → trial saved with correctionIncomplete: true
               → Correcting (speak "That was <Colour>", 300 ms)
-              → PlayingCorrection (replay chord; cards locked for inputLockMs)
+              → PlayingCorrection (await init, replay chord; cards locked for inputLockMs)
               → CorrectionTap (only the target card is enabled)
   target tap  → same trial row re-put with correctionIncomplete: false → advance
 ```
 
 **A tap ends the chord.** Every accepted tap calls `audio.stopChord()` before the chime or the spoken correction, so with a lock shorter than the chord the child can answer mid-chord and the chord is cut off. Without a tap it plays its full length. Unmounting `Practice` also stops it.
 
-**Replay.** A replay button is available in `Awaiting` and `CorrectionTap`. It restarts the chord (cutting off one still sounding) and relocks the cards for `inputLockMs`. It increments the trial's `replayCount`, and has no effect on scoring. Replays before and after a wrong answer are merged into one count.
+**Replay.** A replay button is available in `Awaiting` and `CorrectionTap`. It restarts the chord (cutting off one still sounding) and relocks the cards for `inputLockMs`. It increments the trial's `replayCount` once the chord can actually play (a replay that hits `AudioNeedsGestureError` is not counted), and has no effect on scoring. Replays before and after a wrong answer are merged into one count.
 
 **Persistence before UI.** `saveTrial` is awaited before the success pause and before `advanceTrial`. A trial is never advanced past without its row being written.
 

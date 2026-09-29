@@ -6,6 +6,7 @@ export default function HoldToExit({ onExit }: { onExit: () => void }) {
 
   return (
     <button
+      aria-label="Hold to exit"
       onPointerDown={startHold}
       onPointerUp={stopHold}
       onPointerLeave={stopHold}

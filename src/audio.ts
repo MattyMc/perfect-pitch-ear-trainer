@@ -16,8 +16,32 @@ export class AudioNeedsGestureError extends Error {
 
 const GESTURE_EVENTS = ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'] as const;
 
+/**
+ * The 7-sample Salamander Grand Piano subset covering the Eguchi chords; Tone interpolates every
+ * other pitch. BASE_URL is `base` from vite.config.ts, with a trailing slash, and that base is the
+ * same subpath in dev, preview and production, so a hardcoded "/audio/piano/" 404s on Pages.
+ */
+const PIANO_SAMPLES = {
+  A3: 'A3.mp3',
+  C4: 'C4.mp3',
+  'D#4': 'Ds4.mp3',
+  'F#4': 'Fs4.mp3',
+  A4: 'A4.mp3',
+  C5: 'C5.mp3',
+  'D#5': 'Ds5.mp3',
+};
+const PIANO_BASE_URL = `${import.meta.env.BASE_URL}audio/piano/`;
+
+/** What `play()` managed: the chord started, or sound needs a tap first (nothing played). */
+export type PlayResult = 'played' | 'needs-tap';
+
 export class AudioEngine {
   private sampler: Tone.Sampler | null = null;
+  /**
+   * The piano samples, downloaded and decoded once. Decoded audio isn't tied to a context, so a
+   * sampler rebuilt on a new context reuses these instead of fetching and decoding them again.
+   */
+  private samples: Tone.ToneAudioBuffers | null = null;
   private releaseTimer: ReturnType<typeof setTimeout> | null = null;
   /**
    * Set when the audio context can no longer be trusted: the app came back from the background,
@@ -54,11 +78,8 @@ export class AudioEngine {
    * created and resumed from one. Anything done after an await would be too late.
    */
   private handleGesture = () => {
-    if (this.stale) {
-      this.rebuildContext();
-    } else if (Tone.getContext().state !== 'running') {
-      Tone.getContext().resume().catch(() => {});
-    }
+    if (this.stale) this.rebuildContext();
+    // init() resumes the context before its first await, so that still happens in the gesture.
     // Load errors surface where playback awaits init(); nothing to report from here.
     this.init().catch(() => {});
   };
@@ -95,7 +116,7 @@ export class AudioEngine {
     this.watchedContext = null;
   }
 
-  /** Swaps in a new audio context and resumes it. Must run inside a gesture (see above). */
+  /** Swaps in a new audio context. Must run inside a gesture, with init() after it (see above). */
   private rebuildContext() {
     this.stopChord();
     this.sampler?.dispose();
@@ -104,7 +125,6 @@ export class AudioEngine {
     Tone.setContext(new Tone.Context(), true);
     this.stale = false;
     this.watchContext();
-    Tone.getContext().resume().catch(() => {});
   }
 
   /**
@@ -116,6 +136,7 @@ export class AudioEngine {
     this.watchContext();
     if (this.stale) throw new AudioNeedsGestureError();
 
+    // Tone.start() must stay ahead of any await: iOS only lets it resume inside the gesture.
     if (Tone.getContext().state !== 'running') {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const resumed = await Promise.race([
@@ -123,51 +144,63 @@ export class AudioEngine {
         new Promise<boolean>(resolve => { timer = setTimeout(() => resolve(false), RESUME_TIMEOUT_MS); }),
       ]);
       clearTimeout(timer);
-      if (!resumed || Tone.getContext().state !== 'running') throw new AudioNeedsGestureError();
+      if (!resumed || Tone.getContext().state !== 'running') {
+        // Retrying resume() on a context stuck 'interrupted' never works, so the next tap
+        // builds a fresh one instead.
+        this.stale = true;
+        throw new AudioNeedsGestureError();
+      }
     }
 
     try {
       if (!this.sampler) {
-        // We use Tone.js Sampler with the Salamander Grand Piano samples.
-        // We strictly use the 7-sample subset covering the core Eguchi chords.
-        this.sampler = new Tone.Sampler({
-          urls: {
-            A3: "A3.mp3",
-            C4: "C4.mp3",
-            "D#4": "Ds4.mp3",
-            "F#4": "Fs4.mp3",
-            A4: "A4.mp3",
-            C5: "C5.mp3",
-            "D#5": "Ds5.mp3"
-          },
-          // BASE_URL is whatever `base` is set to in vite.config.ts, always with a trailing
-          // slash — and since that base is unconditional, it is the same subpath in dev,
-          // preview and production. A hardcoded "/audio/piano/" 404s on GitHub Pages.
-          baseUrl: `${import.meta.env.BASE_URL}audio/piano/`,
-          attack: 0,
-          release: 0.15,
-        }).toDestination();
+        const samples = this.samples ??= new Tone.ToneAudioBuffers({ urls: PIANO_SAMPLES, baseUrl: PIANO_BASE_URL });
+        const urls = Object.fromEntries(Object.keys(PIANO_SAMPLES).map(note => [note, samples.get(note)]));
+        this.sampler = new Tone.Sampler({ urls, attack: 0, release: 0.15 }).toDestination();
       }
 
       await Tone.loaded();
     } catch (err) {
+      // Drop what failed, so the next init() downloads the samples again rather than reusing
+      // a set that will never finish loading.
+      this.sampler?.dispose();
+      this.sampler = null;
+      this.samples = null;
       console.warn('Could not initialize Tone.js AudioContext:', err);
       throw new Error("Failed to load required audio files. Please check your connection or reload.");
     }
   }
 
   /**
+   * Readies the audio, then plays the chord (see `playChord`). Resolves 'needs-tap', having
+   * played nothing, when sound needs a tap first; rejects only if the piano failed to load.
+   */
+  async play(midiNotes: number[], durationMs: number): Promise<PlayResult> {
+    try {
+      await this.init();
+    } catch (err) {
+      if (err instanceof AudioNeedsGestureError) return 'needs-tap';
+      throw err;
+    }
+    // If it still couldn't sound (a rebuild replaced the sampler while this waited), a tap will
+    // bring it back; reporting 'played' would let a trial be scored against silence.
+    return this.playChord(midiNotes, durationMs) ? 'played' : 'needs-tap';
+  }
+
+  /**
    * Play an acoustic piano chord using Tone.js Sampler, held for `durationMs` and then
-   * released. Any chord still sounding is cut off first. `stopChord` ends it early.
+   * released. Any chord still sounding is cut off first. `stopChord` ends it early. Returns
+   * whether it played. Components call `play()`, which readies the audio first.
    *
    * The release is a timer rather than `triggerAttackRelease`, because that schedules the
    * release by calling `triggerRelease` immediately, which empties the sampler's list of
    * active sources — after that, `releaseAll()` finds nothing and the chord cannot be
    * interrupted.
    */
-  playChord(midiNotes: number[], durationMs: number) {
+  playChord(midiNotes: number[], durationMs: number): boolean {
     this.stopChord();
-    if (!this.sampler || Tone.getContext().state !== 'running') return;
+    // A sampler still loading would make Tone throw; play nothing, and say so.
+    if (!this.sampler?.loaded || Tone.getContext().state !== 'running') return false;
 
     // Convert MIDI note numbers to standard note strings (e.g., "C4")
     const notes = midiNotes.map(note => Tone.Frequency(note, "midi").toNote());
@@ -179,6 +212,7 @@ export class AudioEngine {
       this.releaseTimer = null;
       sampler.triggerRelease(notes);
     }, durationMs);
+    return true;
   }
 
   /** Cuts off a sounding chord now (with the sampler's short release fade). Safe when silent. */

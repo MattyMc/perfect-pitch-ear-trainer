@@ -3,13 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const tone = vi.hoisted(() => {
   /** Stands in for Tone.Context: a state, a resume we can make succeed or hang, and statechange. */
   class FakeContext {
-    state = 'running';
+    state = 'suspended';
     /** When false, resume() never settles — the iOS "stuck" case. */
     resumable = true;
     private handlers: Array<(state: string) => void> = [];
     resume = vi.fn(() => {
       if (!this.resumable) return new Promise<void>(() => {});
-      this.state = 'running';
+      this.changeState('running');
       return Promise.resolve();
     });
     dispose = vi.fn();
@@ -33,6 +33,7 @@ const tone = vi.hoisted(() => {
     triggerRelease: vi.fn(),
     releaseAll: vi.fn(),
     dispose: vi.fn(),
+    loaded: true,
     toDestination() { return this; },
   });
 
@@ -55,7 +56,12 @@ const tone = vi.hoisted(() => {
       start: vi.fn(() => state.current.resume()),
       loaded: vi.fn(async () => {}),
       now: () => 10,
-      Sampler: vi.fn(function () {
+      /** Decoded samples: stands in for the downloaded, decoded mp3s. */
+      ToneAudioBuffers: vi.fn(function (options: { urls: Record<string, string> }) {
+        const decoded = Object.fromEntries(Object.keys(options.urls).map(note => [note, { decodedNote: note }]));
+        return { get: (note: string) => decoded[note] };
+      }),
+      Sampler: vi.fn(function (_options: { urls: Record<string, unknown> }) {
         const s = makeSampler();
         state.samplers.push(s);
         return s;
@@ -104,6 +110,16 @@ describe('AudioEngine chord playback', () => {
 
     vi.advanceTimersByTime(1);
     expect(tone.sampler.triggerRelease).toHaveBeenCalledWith(['midi60', 'midi64', 'midi67']);
+  });
+
+  it('plays nothing while the piano samples are still loading, rather than throwing', () => {
+    // A rebuilt context gets a new sampler whose buffers take a moment to decode; triggering
+    // it early makes Tone throw ("buffer is either not set or not loaded").
+    tone.sampler.loaded = false;
+    tone.sampler.triggerAttack.mockImplementation(() => { throw new Error('buffer is either not set or not loaded'); });
+
+    expect(() => engine.playChord([60, 64, 67], 3000)).not.toThrow();
+    expect(tone.sampler.triggerAttack).not.toHaveBeenCalled();
   });
 
   it('stopChord cuts a sounding chord off immediately and cancels its scheduled release', () => {
@@ -158,6 +174,18 @@ describe('AudioEngine recovery after the app was in the background', () => {
     expect(tone.sampler.triggerAttack).toHaveBeenCalled();
   });
 
+  it('decodes the piano once: a rebuilt sampler reuses the decoded samples instead of reloading', async () => {
+    returnToForeground();
+    tap();
+    await engine.init();
+
+    expect(tone.module.Sampler).toHaveBeenCalledTimes(2);
+    expect(tone.module.ToneAudioBuffers).toHaveBeenCalledTimes(1);
+    const [first, rebuilt] = tone.module.Sampler.mock.calls.map(call => call[0].urls);
+    expect(Object.keys(rebuilt)).toHaveLength(7);
+    for (const note of Object.keys(first)) expect(rebuilt[note]).toBe(first[note]);
+  });
+
   it('rebuilds after the context changes state on its own, as on an iOS interruption', () => {
     tone.state.current.changeState('interrupted');
     tap();
@@ -200,6 +228,51 @@ describe('AudioEngine recovery after the app was in the background', () => {
 
     await vi.advanceTimersByTimeAsync(RESUME_TIMEOUT_MS);
     expect(await result).toBeInstanceOf(AudioNeedsGestureError);
+  });
+
+  it('play() reports that a tap is needed instead of throwing, and plays nothing', async () => {
+    returnToForeground();
+    await expect(engine.play([60, 64, 67], 1500)).resolves.toBe('needs-tap');
+    expect(tone.sampler.triggerAttack).not.toHaveBeenCalled();
+  });
+
+  it('play() readies the audio, then plays and reports it', async () => {
+    returnToForeground();
+    tap();
+    await expect(engine.play([60, 64, 67], 1500)).resolves.toBe('played');
+    expect(tone.sampler.triggerAttack).toHaveBeenCalledWith(['midi60', 'midi64', 'midi67'], 10, expect.any(Number));
+  });
+
+  it('play() reports a tap is needed when the chord could not actually sound', async () => {
+    // e.g. a rebuild replaced the sampler while this play() was waiting for init().
+    tone.sampler.loaded = false;
+    await expect(engine.play([60, 64, 67], 1500)).resolves.toBe('needs-tap');
+  });
+
+  it('a resume that times out marks the context stale, so the next tap builds a fresh one', async () => {
+    // iOS can leave a context stuck 'interrupted': retrying resume() on it never works.
+    tone.state.current.state = 'suspended';
+    tone.state.current.resumable = false;
+    const result = engine.init().catch(() => {});
+    await vi.advanceTimersByTimeAsync(RESUME_TIMEOUT_MS);
+    await result;
+
+    tap();
+    expect(tone.module.setContext).toHaveBeenCalledTimes(1);
+  });
+
+  it('downloads the piano again after a failed load, instead of keeping the broken samples', async () => {
+    const fresh = new AudioEngine();
+    try {
+      tone.module.loaded.mockRejectedValueOnce(new Error('network down'));
+      await expect(fresh.init()).rejects.toThrow('Failed to load required audio files');
+
+      await fresh.init();
+      // One download for the shared test engine, then the failed one and the retry.
+      expect(tone.module.ToneAudioBuffers).toHaveBeenCalledTimes(3);
+    } finally {
+      fresh.dispose();
+    }
   });
 
   it('stops listening after dispose', () => {

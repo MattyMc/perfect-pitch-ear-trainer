@@ -1,6 +1,5 @@
 import { Ear, ChevronDown } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { audio } from '../audio';
 import { completedSessionsTodayQuery, Profile } from '../db';
 import ProfileDot from './ProfileDot';
 
@@ -18,12 +17,6 @@ export default function ChildHome({ profile, onStart, onParent, onSwitchProfile 
   );
 
   const completedCount = todayCompletedSessions?.length || 0;
-
-  const handleStart = async () => {
-    // Warms the piano up during the tap. If the sound needs another tap, practice asks for it.
-    await audio.init().catch(() => {});
-    onStart();
-  };
 
   return (
     <div className="flex flex-col h-full bg-slate-50 relative select-none">
@@ -54,7 +47,7 @@ export default function ChildHome({ profile, onStart, onParent, onSwitchProfile 
 
       <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-12">
         <button
-          onClick={handleStart}
+          onClick={onStart}
           className="w-64 h-64 rounded-full bg-blue-600 shadow-xl flex flex-col items-center justify-center space-y-4 active:scale-95 transition-transform"
         >
           <Ear className="w-28 h-28 text-white" />

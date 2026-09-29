@@ -18,7 +18,7 @@ When `meta.hasCompletedOnboarding` is false, `App.tsx` shows `FirstRunOnboarding
 2. **What you will do** — "four short sessions throughout the day. Each session contains 25 sounds", "approx. 100 trials total", "2 to 5 minutes", "Calm, neutral supervision". The "25 sounds" text is static even if the trial count is later set to 20.
 3. **How training begins** — Red-only intro, then Red and Yellow. Three finish buttons: "Introduce Red (Start Now)", "Show me the Quick Start", "Read the full method guide".
 
-`finish()` awaits `audio.init()` (this is the first audio unlock on a fresh install) and calls `setOnboardingCompleted(true)`. `App.tsx` maps the first button to the practice view and the other two to the parent view. "Quick Start" and "full guide" are not distinguished downstream; nothing deep-links into a guide section from onboarding.
+`finish()` calls `setOnboardingCompleted(true)`; the tap itself unlocks the audio through the engine's gesture listener (the first unlock on a fresh install). `App.tsx` maps the first button to the practice view and the other two to the parent view. "Quick Start" and "full guide" are not distinguished downstream; nothing deep-links into a guide section from onboarding.
 
 ## Parent gate
 

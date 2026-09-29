@@ -1,16 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 
-const mocks = vi.hoisted(() => ({
-  AudioNeedsGestureError: class AudioNeedsGestureError extends Error {},
-  audio: {
+const mocks = vi.hoisted(() => {
+  class AudioNeedsGestureError extends Error {}
+  const audio = {
     init: vi.fn(async () => {}),
     playChord: vi.fn(),
+    // Mirrors AudioEngine.play: readies the audio through init(), then plays.
+    play: vi.fn(async (midiNotes: number[], durationMs: number) => {
+      try {
+        await audio.init();
+      } catch (err) {
+        if (err instanceof AudioNeedsGestureError) return 'needs-tap';
+        throw err;
+      }
+      audio.playChord(midiNotes, durationMs);
+      return 'played';
+    }),
     stopChord: vi.fn(),
     playSuccessTone: vi.fn(() => 450),
     speak: vi.fn(async () => {}),
-  },
-  db: {
+  };
+  return { AudioNeedsGestureError, audio, db: {
     db: {
       sessions: { add: vi.fn(async () => {}), update: vi.fn(async () => 1) },
     },
@@ -18,8 +29,8 @@ const mocks = vi.hoisted(() => ({
     getResumeableSession: vi.fn(async () => undefined),
     endSession: vi.fn(async () => {}),
     recordTrial: vi.fn(async () => true),
-  },
-}));
+  } };
+});
 
 vi.mock('../audio', () => ({ audio: mocks.audio, AudioNeedsGestureError: mocks.AudioNeedsGestureError }));
 vi.mock('../db', () => mocks.db);
@@ -31,7 +42,7 @@ vi.mock('../utils/scheduler', () => ({
 import Practice from './Practice';
 import { CHORDS_MAP } from '../chords';
 
-const RED_NOTES = CHORDS_MAP.get('red')!.midiNotes;
+const RED_NOTES = CHORDS_MAP.get('red')?.midiNotes;
 /** Practice waits this long after mounting before the first chord. */
 const FIRST_CHORD_DELAY_MS = 400;
 
@@ -46,7 +57,11 @@ function renderPractice(timing: { chordDurationMs: number; inputLockMs: number }
       onExit={() => {}}
     />,
   );
-  const card = (id: string) => view.container.querySelector<HTMLButtonElement>(`button[data-chord-id="${id}"]`)!;
+  const card = (id: string) => {
+    const button = view.container.querySelector<HTMLButtonElement>(`button[data-chord-id="${id}"]`);
+    if (!button) throw new Error(`no card for ${id}`);
+    return button;
+  };
   return { ...view, card };
 }
 
@@ -157,6 +172,57 @@ describe('Practice playback timing', () => {
     await act(async () => { fireEvent.click(getByText('Continue')); });
 
     expect(mocks.audio.playChord).toHaveBeenCalledWith(RED_NOTES, 3000);
+  });
+
+  it('the Continue screen still offers hold-to-exit, so a parent is never stuck on it', async () => {
+    mocks.audio.init.mockRejectedValueOnce(new mocks.AudioNeedsGestureError());
+    const { getByText, getByRole } = renderPractice({ chordDurationMs: 3000, inputLockMs: 500 });
+    await advance(FIRST_CHORD_DELAY_MS);
+
+    expect(getByText('Continue')).toBeTruthy();
+    expect(getByRole('button', { name: 'Hold to exit' })).toBeTruthy();
+  });
+
+  it('the correction waits for the audio to be ready before replaying the chord', async () => {
+    const { card } = renderPractice({ chordDurationMs: 3000, inputLockMs: 500 });
+    await advance(FIRST_CHORD_DELAY_MS + 500);
+
+    // The wrong tap may have just rebuilt the audio, so the piano could still be loading.
+    let finishLoading = () => {};
+    mocks.audio.init.mockImplementationOnce(() => new Promise<void>(resolve => { finishLoading = resolve; }));
+    await act(async () => { fireEvent.click(card('yellow')); });
+    await advance(300);
+    expect(mocks.audio.playChord).toHaveBeenCalledTimes(1);
+
+    await act(async () => { finishLoading(); });
+    expect(mocks.audio.playChord).toHaveBeenCalledTimes(2);
+    expect(mocks.audio.playChord).toHaveBeenLastCalledWith(RED_NOTES, 3000);
+  });
+
+  it('if the audio needs a tap during a correction, goes straight to the correction tap', async () => {
+    const { card, queryByText } = renderPractice({ chordDurationMs: 3000, inputLockMs: 500 });
+    await advance(FIRST_CHORD_DELAY_MS + 500);
+
+    mocks.audio.init.mockRejectedValueOnce(new mocks.AudioNeedsGestureError());
+    await act(async () => { fireEvent.click(card('yellow')); });
+    await advance(300);
+
+    // Not the Continue screen: that would restart the trial and let the next tap count as a
+    // first answer. The target card is live, and Replay (itself a tap) can bring the sound back.
+    expect(queryByText('Continue')).toBeNull();
+    expect(mocks.audio.playChord).toHaveBeenCalledTimes(1);
+    expect(card('red').disabled).toBe(false);
+  });
+
+  it('a replay that could not play is not counted', async () => {
+    const { card, getByText } = renderPractice({ chordDurationMs: 3000, inputLockMs: 500 });
+    await advance(FIRST_CHORD_DELAY_MS + 500);
+
+    mocks.audio.init.mockRejectedValueOnce(new mocks.AudioNeedsGestureError());
+    await act(async () => { fireEvent.click(getByText('Replay')); });
+    await act(async () => { fireEvent.click(card('red')); });
+
+    expect(mocks.db.recordTrial).toHaveBeenCalledWith(expect.objectContaining({ replayCount: 0 }), expect.anything());
   });
 
   it('stops the chord when the practice screen unmounts', async () => {
