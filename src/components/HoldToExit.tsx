@@ -1,39 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
 import { DoorOpen } from 'lucide-react';
+import { useHold } from './useHold';
 
 export default function HoldToExit({ onExit }: { onExit: () => void }) {
-  const [progress, setProgress] = useState(0);
-  const timerRef = useRef<number | null>(null);
-  const startTimeRef = useRef<number>(0);
-
-  const HOLD_TIME = 1000;
-
-  const startHold = () => {
-    startTimeRef.current = Date.now();
-    const updateProgress = () => {
-      const elapsed = Date.now() - startTimeRef.current;
-      const p = Math.min((elapsed / HOLD_TIME) * 100, 100);
-      setProgress(p);
-      if (p >= 100) {
-        onExit();
-      } else {
-        timerRef.current = requestAnimationFrame(updateProgress);
-      }
-    };
-    timerRef.current = requestAnimationFrame(updateProgress);
-  };
-
-  const stopHold = () => {
-    if (timerRef.current) {
-      cancelAnimationFrame(timerRef.current);
-      timerRef.current = null;
-    }
-    setProgress(0);
-  };
-
-  useEffect(() => {
-    return () => stopHold();
-  }, []);
+  const { progress, start: startHold, cancel: stopHold } = useHold(1000, onExit);
 
   return (
     <button

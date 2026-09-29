@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Shield, ArrowLeft } from 'lucide-react';
+import { useHold } from './useHold';
 
 interface ParentGateProps {
   onCancel: () => void;
@@ -8,41 +9,8 @@ interface ParentGateProps {
 
 export default function ParentGate({ onCancel, children }: ParentGateProps) {
   const [isUnlocked, setIsUnlocked] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const timerRef = useRef<number | null>(null);
-  const startTimeRef = useRef<number>(0);
-
   // Parent hold is 1 second
-  const HOLD_TIME = 1000;
-
-  const startHold = () => {
-    startTimeRef.current = Date.now();
-    const updateProgress = () => {
-      const elapsed = Date.now() - startTimeRef.current;
-      const p = Math.min((elapsed / HOLD_TIME) * 100, 100);
-      setProgress(p);
-      if (p >= 100) {
-        setIsUnlocked(true);
-      } else {
-        timerRef.current = requestAnimationFrame(updateProgress);
-      }
-    };
-    timerRef.current = requestAnimationFrame(updateProgress);
-  };
-
-  const stopHold = () => {
-    if (timerRef.current) {
-      cancelAnimationFrame(timerRef.current);
-      timerRef.current = null;
-    }
-    if (!isUnlocked) {
-      setProgress(0);
-    }
-  };
-
-  useEffect(() => {
-    return () => stopHold();
-  }, [isUnlocked]);
+  const { progress, start: startHold, cancel: stopHold } = useHold(1000, () => setIsUnlocked(true));
 
   if (isUnlocked) {
     return <>{children}</>;

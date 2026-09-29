@@ -22,7 +22,7 @@ When `meta.hasCompletedOnboarding` is false, `App.tsx` shows `FirstRunOnboarding
 
 ## Parent gate
 
-`ParentGate` is a 160 px round button that must be pressed and held for 1000 ms, timed with `Date.now()` in a `requestAnimationFrame` loop and drawn as a fill bar. Releasing early resets to zero. There is **no PIN** and no arithmetic challenge. A large "Back to Child Practice" button sits above it. The gate wraps `ParentDashboard`; the dashboard's own `subView` switches to `ParentGuide`.
+`ParentGate` is a 160 px round button that must be pressed and held for 1000 ms, completed by a 1000 ms timer in the shared `useHold` hook (also used by `HoldToExit`), with animation frames drawing the fill bar only. That split matters: a hidden tab runs no frames, so a hold completed from the frame loop never finished there. Releasing early, or sliding off the button, resets to zero. There is **no PIN** and no arithmetic challenge. A large "Back to Child Practice" button sits above it. The gate wraps `ParentDashboard`; the dashboard's own `subView` switches to `ParentGuide`.
 
 ## Dashboard
 
