@@ -1,27 +1,132 @@
 import * as Tone from 'tone';
 
+/** How long `init()` waits for a suspended context to resume before asking for a tap. */
+export const RESUME_TIMEOUT_MS = 1500;
+
+/**
+ * Thrown by `init()` when sound cannot start without a user gesture: the context is stale (see
+ * below) or will not resume. Callers show a "Continue" button; its tap rebuilds the audio.
+ */
+export class AudioNeedsGestureError extends Error {
+  constructor() {
+    super('Sound needs a tap to start again.');
+    this.name = 'AudioNeedsGestureError';
+  }
+}
+
+const GESTURE_EVENTS = ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'] as const;
+
 export class AudioEngine {
   private sampler: Tone.Sampler | null = null;
   private releaseTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Set when the audio context can no longer be trusted: the app came back from the background,
+   * or the context left 'running' on its own. On iOS a PWA brought back to the foreground can
+   * keep a context that reports 'running' but plays nothing (WebKit bug 263627), or one stuck
+   * 'interrupted' that resume() cannot revive (WebKit bug 273511). Neither is reliably
+   * detectable, so a stale context is replaced with a new one on the next tap.
+   */
+  private stale = false;
+  private watchedContext: Tone.BaseContext | null = null;
+  private contextWasRunning = false;
 
   constructor() {
-    // Setup listeners on window to automatically unlock on first user gesture
     if (typeof window !== 'undefined') {
-      const unlock = () => {
-        this.init();
-      };
-      ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'].forEach(evt => {
-        window.addEventListener(evt, unlock, { passive: true });
-      });
+      // Stay attached, not once: every gesture is a chance to unlock or rebuild the audio.
+      GESTURE_EVENTS.forEach(evt => window.addEventListener(evt, this.handleGesture, { passive: true }));
+      document.addEventListener('visibilitychange', this.handleVisibilityChange);
+      window.addEventListener('pageshow', this.handlePageShow);
     }
   }
 
-  async init() {
-    try {
-      if (Tone.context.state !== 'running') {
-        await Tone.start();
-      }
+  /** Removes the engine's listeners. The app's singleton never needs this; tests do. */
+  dispose() {
+    if (typeof window !== 'undefined') {
+      GESTURE_EVENTS.forEach(evt => window.removeEventListener(evt, this.handleGesture));
+      document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+      window.removeEventListener('pageshow', this.handlePageShow);
+    }
+    this.unwatchContext();
+  }
 
+  /**
+   * Runs synchronously inside every user gesture, because iOS only lets an audio context be
+   * created and resumed from one. Anything done after an await would be too late.
+   */
+  private handleGesture = () => {
+    if (this.stale) {
+      this.rebuildContext();
+    } else if (Tone.getContext().state !== 'running') {
+      Tone.getContext().resume().catch(() => {});
+    }
+    // Load errors surface where playback awaits init(); nothing to report from here.
+    this.init().catch(() => {});
+  };
+
+  private handleVisibilityChange = () => {
+    // Only a context that has been used can have gone bad.
+    if (document.visibilityState === 'visible' && this.sampler) this.stale = true;
+  };
+
+  private handlePageShow = (event: PageTransitionEvent) => {
+    if (event.persisted && this.sampler) this.stale = true;
+  };
+
+  private handleStateChange = (state: AudioContextState | 'interrupted') => {
+    if (state === 'running') {
+      this.contextWasRunning = true;
+    } else if (this.contextWasRunning) {
+      // Left 'running' without us asking: an interruption, or the OS suspending it.
+      this.stale = true;
+    }
+  };
+
+  private watchContext() {
+    const context = Tone.getContext();
+    if (this.watchedContext === context) return;
+    this.unwatchContext();
+    this.watchedContext = context;
+    this.contextWasRunning = context.state === 'running';
+    context.on('statechange', this.handleStateChange);
+  }
+
+  private unwatchContext() {
+    this.watchedContext?.off('statechange', this.handleStateChange);
+    this.watchedContext = null;
+  }
+
+  /** Swaps in a new audio context and resumes it. Must run inside a gesture (see above). */
+  private rebuildContext() {
+    this.stopChord();
+    this.sampler?.dispose();
+    this.sampler = null;
+    this.unwatchContext();
+    Tone.setContext(new Tone.Context(), true);
+    this.stale = false;
+    this.watchContext();
+    Tone.getContext().resume().catch(() => {});
+  }
+
+  /**
+   * Makes sure the context is running and the piano is loaded. Rejects with
+   * `AudioNeedsGestureError` when that needs a tap first, rather than hanging or letting a
+   * chord play into a dead context.
+   */
+  async init() {
+    this.watchContext();
+    if (this.stale) throw new AudioNeedsGestureError();
+
+    if (Tone.getContext().state !== 'running') {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const resumed = await Promise.race([
+        Tone.start().then(() => true, () => false),
+        new Promise<boolean>(resolve => { timer = setTimeout(() => resolve(false), RESUME_TIMEOUT_MS); }),
+      ]);
+      clearTimeout(timer);
+      if (!resumed || Tone.getContext().state !== 'running') throw new AudioNeedsGestureError();
+    }
+
+    try {
       if (!this.sampler) {
         // We use Tone.js Sampler with the Salamander Grand Piano samples.
         // We strictly use the 7-sample subset covering the core Eguchi chords.
@@ -62,7 +167,7 @@ export class AudioEngine {
    */
   playChord(midiNotes: number[], durationMs: number) {
     this.stopChord();
-    if (!this.sampler || Tone.context.state !== 'running') return;
+    if (!this.sampler || Tone.getContext().state !== 'running') return;
 
     // Convert MIDI note numbers to standard note strings (e.g., "C4")
     const notes = midiNotes.map(note => Tone.Frequency(note, "midi").toNote());
@@ -87,7 +192,7 @@ export class AudioEngine {
   }
 
   playSuccessTone(): number {
-    if (Tone.context.state !== 'running') return 450;
+    if (Tone.getContext().state !== 'running') return 450;
     
     const startTime = Tone.now() + 0.05;
     

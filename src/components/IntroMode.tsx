@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { CHORDS_MAP } from '../chords';
-import { audio } from '../audio';
+import { audio, AudioNeedsGestureError } from '../audio';
 import { Check, Ear } from 'lucide-react';
 import { db } from '../db';
 import HoldToExit from './HoldToExit';
@@ -14,6 +14,8 @@ export default function IntroMode({ profileId, chordId, chordDurationMs, onExit 
   const [step, setStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [statusText, setStatusText] = useState<'listening' | 'tap' | 'confirmed'>('listening');
+  // The step to rerun once the sound has been unlocked by a tap on Continue.
+  const [resumeStep, setResumeStep] = useState<number | null>(null);
   const isMountedRef = useRef(true);
   const isProcessingRef = useRef(false);
   const startedAtRef = useRef(Date.now());
@@ -42,8 +44,7 @@ export default function IntroMode({ profileId, chordId, chordDurationMs, onExit 
     startedAtRef.current = Date.now();
     
     const initIntro = async () => {
-      await audio.init();
-      if (!isMountedRef.current) return;
+      if (!(await initAudioOrAskForTap(0))) return;
       
       // Step 1: Spoken intro prompt
       setStatusText('listening');
@@ -69,6 +70,24 @@ export default function IntroMode({ profileId, chordId, chordDurationMs, onExit 
     };
   }, [chordId]);
 
+  /**
+   * Resolves true once the sound is ready. When it needs a tap to start again (the app was
+   * reopened from the background), shows Continue for `stepToResume` and resolves false.
+   */
+  const initAudioOrAskForTap = async (stepToResume: number) => {
+    try {
+      await audio.init();
+    } catch (err) {
+      if (!(err instanceof AudioNeedsGestureError)) throw err;
+      if (isMountedRef.current) {
+        setResumeStep(stepToResume);
+        isProcessingRef.current = false;
+      }
+      return false;
+    }
+    return isMountedRef.current;
+  };
+
   const runStep = async (currentStep: number) => {
     if (!isMountedRef.current) return;
     
@@ -78,7 +97,7 @@ export default function IntroMode({ profileId, chordId, chordDurationMs, onExit 
     setIsPlaying(true);
     setStatusText('listening');
 
-    await audio.init();
+    if (!(await initAudioOrAskForTap(currentStep))) return;
     const chord = CHORDS_MAP.get(chordId)!;
     
     // 1. Play acoustic piano chord for the whole configured length
@@ -125,6 +144,24 @@ export default function IntroMode({ profileId, chordId, chordDurationMs, onExit 
   };
 
   const chord = CHORDS_MAP.get(chordId)!;
+
+  if (resumeStep !== null) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full space-y-8 bg-slate-50">
+        <h2 className="text-3xl font-bold text-slate-800">Ready to continue?</h2>
+        <button
+          onClick={() => {
+            const stepToRun = resumeStep;
+            setResumeStep(null);
+            runStep(stepToRun);
+          }}
+          className="px-12 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-full text-2xl font-bold shadow-lg active:scale-95 transition-transform"
+        >
+          Continue
+        </button>
+      </div>
+    );
+  }
 
   if (step >= 3) {
     return (

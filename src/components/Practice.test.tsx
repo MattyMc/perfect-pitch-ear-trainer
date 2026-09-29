@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 
 const mocks = vi.hoisted(() => ({
+  AudioNeedsGestureError: class AudioNeedsGestureError extends Error {},
   audio: {
     init: vi.fn(async () => {}),
     playChord: vi.fn(),
@@ -20,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('../audio', () => ({ audio: mocks.audio }));
+vi.mock('../audio', () => ({ audio: mocks.audio, AudioNeedsGestureError: mocks.AudioNeedsGestureError }));
 vi.mock('../db', () => mocks.db);
 // Red is always presented first, so the tests know which card is right.
 vi.mock('../utils/scheduler', () => ({
@@ -144,6 +145,18 @@ describe('Practice playback timing', () => {
 
     await advance(500);
     expect(card('red').disabled).toBe(false);
+  });
+
+  it('asks for a tap instead of playing into silence when the audio needs a gesture', async () => {
+    mocks.audio.init.mockRejectedValueOnce(new mocks.AudioNeedsGestureError());
+    const { getByText, queryByText } = renderPractice({ chordDurationMs: 3000, inputLockMs: 500 });
+    await advance(FIRST_CHORD_DELAY_MS);
+
+    expect(mocks.audio.playChord).not.toHaveBeenCalled();
+    expect(queryByText('Audio Error')).toBeNull();
+    await act(async () => { fireEvent.click(getByText('Continue')); });
+
+    expect(mocks.audio.playChord).toHaveBeenCalledWith(RED_NOTES, 3000);
   });
 
   it('stops the chord when the practice screen unmounts', async () => {

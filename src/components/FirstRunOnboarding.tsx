@@ -13,7 +13,8 @@ export default function FirstRunOnboarding({ profileName, onComplete }: FirstRun
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
   const finish = async (action: 'quickstart' | 'guide' | 'practice') => {
-    await audio.init();
+    // Unlocks audio during the tap. If the sound needs another tap, practice asks for it.
+    await audio.init().catch(() => {});
     await setOnboardingCompleted(true);
     onComplete(action);
   };

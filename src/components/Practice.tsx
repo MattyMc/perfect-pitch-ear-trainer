@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Ear, RotateCw, Check } from 'lucide-react';
 import { CHORDS_MAP } from '../chords';
-import { audio } from '../audio';
+import { audio, AudioNeedsGestureError } from '../audio';
 import { db, checkAndCloseStaleSessions, getResumeableSession, endSession, recordTrial } from '../db';
 import { generateSessionSequence } from '../utils/scheduler';
 import { newId } from '../utils/id';
@@ -129,7 +129,12 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
     try {
       await audio.init();
     } catch (err: any) {
-      if (isMountedRef.current) setAudioError(err.message || 'Audio failed to load');
+      if (isMountedRef.current) {
+        // The sound needs a tap to start again (e.g. the app was reopened from the background):
+        // show Continue, whose tap rebuilds the audio, rather than playing into silence.
+        if (err instanceof AudioNeedsGestureError) setTrialState('NeedsResumeTap');
+        else setAudioError(err.message || 'Audio failed to load');
+      }
       isProcessingRef.current = false;
       return;
     }
@@ -162,7 +167,8 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
     try {
       await audio.init();
     } catch (err: any) {
-      if (isMountedRef.current) setAudioError(err.message || 'Audio failed to load');
+      // Replay is itself a tap, so a gesture error just means "press it again".
+      if (isMountedRef.current && !(err instanceof AudioNeedsGestureError)) setAudioError(err.message || 'Audio failed to load');
       setTrialState(prevState);
       isProcessingRef.current = false;
       return;

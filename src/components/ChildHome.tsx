@@ -20,7 +20,8 @@ export default function ChildHome({ profile, onStart, onParent, onSwitchProfile 
   const completedCount = todayCompletedSessions?.length || 0;
 
   const handleStart = async () => {
-    await audio.init();
+    // Warms the piano up during the tap. If the sound needs another tap, practice asks for it.
+    await audio.init().catch(() => {});
     onStart();
   };
 
