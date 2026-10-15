@@ -22,7 +22,7 @@ When `meta.hasCompletedOnboarding` is false, `App.tsx` shows `FirstRunOnboarding
 
 ## Parent gate
 
-`ParentGate` is a 160 px round button that must be pressed and held for 1000 ms, completed by a 1000 ms timer in the shared `useHold` hook (also used by `HoldToExit`), with animation frames drawing the fill bar only. That split matters: a hidden tab runs no frames, so a hold completed from the frame loop never finished there. Releasing early, or sliding off the button, resets to zero. There is **no PIN** and no arithmetic challenge. A large "Back to Child Practice" button sits above it. The gate wraps `ParentDashboard`; the dashboard's own `subView` switches to `ParentGuide`.
+`ParentGate` is a 160 px round button that must be pressed and held for 1000 ms, completed by a 1000 ms timer in the shared `useHold` hook (also used by `HoldToExit`), with animation frames drawing the fill bar only. That split matters: a hidden tab runs no frames, so a hold completed from the frame loop never finished there. Releasing early, or sliding off the button, resets to zero. There is **no PIN** and no arithmetic challenge. A large "Back to Child Practice" button sits above it. The gate wraps `ParentDashboard`; the dashboard's own `subView` switches to `ParentGuide` or `SessionHistory`.
 
 ## Dashboard
 
@@ -36,7 +36,19 @@ When `meta.hasCompletedOnboarding` is false, `App.tsx` shows `FirstRunOnboarding
 | Active chords | "N of 14" with swatches and colour names. |
 | Caution | "High chord accuracy indicates good training progress, but does not prove independent absolute pitch." |
 
-There is no per-chord breakdown, confusion list, replay rate, streak count, or session history, although guide section 7 mentions replay rate, confusions, and consistency as things to watch.
+The dashboard itself has no per-chord breakdown, confusion list, or replay rate, although guide section 7 mentions replay rate, confusions, and consistency as things to watch. Those appear per session in the session history below.
+
+### Session history
+
+"Session history" in the Recent Progress card opens `SessionHistory` (a dashboard `subView`, like the guide). Opening it first runs `checkAndCloseStaleSessions`, the same sweep `Practice` runs on mount, so a session abandoned more than ten minutes ago shows its closed status rather than "In progress". It lists the profile's sessions newest first, 40 at a time with "Show older sessions", skipping `discarded` rows; a page that would cut a day in half is extended to the whole of its oldest day, so each day's count is complete. Summaries come from `summariseSession` in `src/utils/sessionSummary.ts`.
+
+- **First sound of each session** heads the screen: how many of the last 20 scored sessions had their first sound (`sequenceIndex` 0) answered right, a strip of those first sounds oldest to newest, and what guessing would score (the sum of 1/N over those sessions, N being the session's chord count). The first sound is the only one with no earlier chord to compare against. A session whose index-0 trial was never answered is left out.
+- Sessions are grouped by local day, each day headed "N of 4 sessions" using the same rule as Sessions Today.
+- Each scored session shows its start time and status (Completed, Ended early for `completed_short`, Interrupted, In progress), with the chord set beneath the time: a dot per chord in curriculum order (from the distinct ids in the session's own `sequence`, so an old session shows its own level) and "N chords · newest X". Top right, side by side, are the two headline numbers: **First** (the first sound's chip, drawn as in the strip, then a dot in the practice screen's progress-strip colours, emerald for correct and rose for missed, with the word beneath; a dash if index 0 was never answered) and **Score** ("16 / 20" as `PracticeDone` shows it, with the percentage beneath). Below is a strip of every sound in order: solid in the chord's colour when correct, hollow with a cross when missed, dashed for planned sounds not reached. Duration is not shown.
+- Tapping a session expands it: first-answer accuracy per chord (curriculum order), mix-ups grouped as "X played, chose Y ×n", how many times the Replay button was pressed, and a note if the session ended mid-correction.
+- Intro sessions show as "Introduction to Red · heard 3 times · unscored". They have no trials; Red is the only chord an intro can be for, since active chords are a prefix of `CHORDS`.
+
+Nothing here is shown to the child.
 
 ### Advancement checklist
 

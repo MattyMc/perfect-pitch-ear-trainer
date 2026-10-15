@@ -11,9 +11,10 @@ import {
   BarChart2, Settings, Download, BookOpen,
   HelpCircle, ArrowLeft, CheckCircle2, XCircle,
   Sparkles, RefreshCw, Info, Volume2,
-  Users, Pencil, Trash2, Plus, Check
+  Users, Pencil, Trash2, Plus, Check, History, ChevronRight
 } from 'lucide-react';
 import ParentGuide from './ParentGuide';
+import SessionHistory from './SessionHistory';
 import ProfileForm from './ProfileForm';
 import ProfileDot from './ProfileDot';
 import PlaybackTimingSettings from './PlaybackTimingSettings';
@@ -38,7 +39,7 @@ interface ParentDashboardProps {
 }
 
 export default function ParentDashboard({ profile, config, profiles, onExit, onStartPractice }: ParentDashboardProps) {
-  const [subView, setSubView] = useState<'dashboard' | 'guide'>('dashboard');
+  const [subView, setSubView] = useState<'dashboard' | 'guide' | 'history'>('dashboard');
   const [guideSection, setGuideSection] = useState<string>('quickstart');
   const [isPlayingTest, setIsPlayingTest] = useState(false);
   // At most one profile form is open at a time: adding, or renaming one profile.
@@ -150,6 +151,10 @@ export default function ParentDashboard({ profile, config, profiles, onExit, onS
   const has14Days = daysAtLevel >= 14;
   const hasHighAccuracy = totalTrials >= 100 && accuracy >= 95;
 
+  if (subView === 'history') {
+    return <SessionHistory key={profile.id} profile={profile} onBack={() => setSubView('dashboard')} />;
+  }
+
   if (subView === 'guide') {
     return (
       <ParentGuide 
@@ -242,6 +247,20 @@ export default function ParentDashboard({ profile, config, profiles, onExit, onS
               <span className="text-[10px] text-slate-400 block mt-0.5">min 14 days</span>
             </div>
           </div>
+
+          <button
+            onClick={() => setSubView('history')}
+            className="w-full p-3 bg-blue-50/60 hover:bg-blue-50 active:bg-blue-100 rounded-xl border border-blue-100 flex items-center justify-between text-left transition-colors"
+          >
+            <span className="flex items-center space-x-2.5">
+              <History className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>
+                <span className="text-xs font-bold text-blue-950 block">Session history</span>
+                <span className="text-[11px] text-blue-700">Every session, sound by sound, and the first sound of each</span>
+              </span>
+            </span>
+            <ChevronRight className="w-4 h-4 text-blue-400 shrink-0" />
+          </button>
 
           <div className="p-3 bg-amber-50/70 border border-amber-200/60 rounded-xl text-amber-900 text-xs">
             <strong>Note on progress:</strong> High chord accuracy indicates good training progress, but does not prove independent absolute pitch.
