@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Session, Trial } from '../db';
-import { groupByDay, summariseSession } from './sessionSummary';
+import { groupByDay, summariseSession, tallyByChord } from './sessionSummary';
 
 function session(overrides: Partial<Session> = {}): Session {
   return {
@@ -92,5 +92,27 @@ describe('groupByDay', () => {
     const days = groupByDay([at(15, 18), at(15, 7), at(14, 23), at(12, 9)]);
     expect(days.map(d => d.summaries.map(s => s.session.id))).toEqual([['15-18', '15-7'], ['14-23'], ['12-9']]);
     expect(days[0].dayStart).toBe(new Date(2026, 9, 15).getTime());
+  });
+});
+
+describe('tallyByChord', () => {
+  it('counts correct first answers per chord, in curriculum order', () => {
+    const sounds = [
+      { chordId: 'blue', correct: false },
+      { chordId: 'yellow', correct: true },
+      { chordId: 'red', correct: true },
+      { chordId: 'yellow', correct: false },
+      { chordId: 'red', correct: true },
+    ];
+    expect(tallyByChord(sounds)).toEqual([
+      { chordId: 'red', correct: 2, total: 2 },
+      { chordId: 'yellow', correct: 1, total: 2 },
+      { chordId: 'blue', correct: 0, total: 1 },
+    ]);
+  });
+
+  it('leaves out chords that were never the first sound', () => {
+    expect(tallyByChord([])).toEqual([]);
+    expect(tallyByChord([{ chordId: 'yellow', correct: true }]).map(t => t.chordId)).toEqual(['yellow']);
   });
 });

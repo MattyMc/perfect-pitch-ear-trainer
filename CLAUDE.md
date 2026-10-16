@@ -92,6 +92,8 @@ Schema changes require a new `this.version(n).stores({...})` block — v1's decl
 
 **Invariant:** `config.activeChordIds` is always a *prefix* of `CHORDS` in array order. `ParentDashboard.addChord()` appends `CHORDS[activeChordIds.length]` and `removeLastChord()` slices the last one off. Reordering `CHORDS` therefore silently rewrites what every existing learner is practicing — append new chords, don't reorder.
 
+**Draw a chord's colour as a rectangle, never a circle.** Anywhere a chord (or note) is shown by its colour — swatches, legends, chips, history strips, per-chord rows — use a small rounded rectangle (`rounded-[3px]`–`rounded-md`, as `TrialChip` does), so it matches the answer cards the child taps in practice. Circles are reserved for profile colours (the dot beside a name) and for the correct/missed progress dots, so a round colour mark never reads as a chord. Bars, such as the per-chord accuracy bars, are fine. Some older chord swatches are still round: `ChordDot`, `ChordSet` and the intro icon in `SessionHistory.tsx`, the active-chord swatches in `ParentDashboard.tsx` and `ParentGuide.tsx`, the chord row on `ProfileCreateScreen`, and the chord swatches on `PracticeDone`. Convert them when you touch that code.
+
 Advancement is never automatic. The dashboard shows a checklist (≥14 days at level, ≥95% over the last 100 trials, parent approval) but the "Introduce Next Chord" button is never gated on it — the criteria are purely advisory. Its only `disabled` condition is having introduced all 14 chords. `currentLevelStartedAtUtc` resets on every add or remove.
 
 ### Audio (`src/audio.ts`)

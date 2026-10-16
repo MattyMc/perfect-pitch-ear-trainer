@@ -89,6 +89,21 @@ export function summariseSession(session: Session, trials: Trial[]): SessionSumm
   };
 }
 
+/**
+ * First-answer accuracy per chord over a set of first sounds: one tally for each chord that
+ * was the first sound at least once, in curriculum order.
+ */
+export function tallyByChord(sounds: { chordId: string; correct: boolean }[]): ChordTally[] {
+  const tallies = new Map<string, ChordTally>();
+  for (const s of sounds) {
+    const tally = tallies.get(s.chordId) ?? { chordId: s.chordId, correct: 0, total: 0 };
+    tally.total += 1;
+    if (s.correct) tally.correct += 1;
+    tallies.set(s.chordId, tally);
+  }
+  return [...tallies.values()].sort((a, b) => curriculumOrder(a.chordId) - curriculumOrder(b.chordId));
+}
+
 export interface SessionDay {
   /** Local midnight of the day, as a timestamp. */
   dayStart: number;

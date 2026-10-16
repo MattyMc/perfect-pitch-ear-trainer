@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowLeft, ChevronDown, History, Sparkles, X } from 'lucide-react';
 import { db, Profile, Session, Trial, checkAndCloseStaleSessions } from '../db';
 import { CHORDS, CHORDS_MAP } from '../chords';
-import { groupByDay, summariseSession, type SessionSummary } from '../utils/sessionSummary';
+import { groupByDay, summariseSession, tallyByChord, type ChordTally, type SessionSummary } from '../utils/sessionSummary';
 
 const PAGE_SIZE = 40;
 /** How many recent scored sessions the first-sound strip covers. */
@@ -141,6 +141,7 @@ function EmptyState({ name }: { name: string }) {
  * so it is the closest thing in a session to recognising the chord from memory alone.
  */
 function FirstSoundCard({ summaries }: { summaries: SessionSummary[] }) {
+  const [showByChord, setShowByChord] = useState(false);
   const recent = summaries
     .flatMap(s => (s.firstSound ? [{ id: s.session.id, chordCount: s.chordIds.length, ...s.firstSound }] : []))
     .slice(0, FIRST_SOUND_WINDOW);
@@ -150,6 +151,7 @@ function FirstSoundCard({ summaries }: { summaries: SessionSummary[] }) {
   const chance = recent.reduce((sum, s) => sum + 1 / Math.max(1, s.chordCount), 0);
   // Oldest on the left, so the strip reads forward in time like the session strips.
   const chronological = [...recent].reverse();
+  const byChord = tallyByChord(recent);
 
   return (
     <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 space-y-3">
@@ -173,6 +175,22 @@ function FirstSoundCard({ summaries }: { summaries: SessionSummary[] }) {
       <p className="text-[11px] text-slate-500">
         Guessing would get about {Math.round(chance)} of {recent.length}.
       </p>
+      {/* Collapsed by default: the headline and strip are the summary, this is the detail. */}
+      <div className="pt-1 border-t border-slate-100">
+        <button
+          onClick={() => setShowByChord(v => !v)}
+          aria-expanded={showByChord}
+          className="w-full flex items-center justify-between pt-2.5 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 active:text-slate-700"
+        >
+          <span>By first chord</span>
+          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showByChord ? 'rotate-180' : ''}`} />
+        </button>
+        {showByChord && (
+          <div className="pt-1.5">
+            <ChordTallyRows tallies={byChord} />
+          </div>
+        )}
+      </div>
     </section>
   );
 }
@@ -352,26 +370,7 @@ function SessionDetail({ summary }: { summary: SessionSummary }) {
     <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-3.5 space-y-4">
       <div className="space-y-2">
         <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">By chord</h3>
-        <div className="space-y-1.5">
-          {summary.perChord.map(c => {
-            const chord = CHORDS_MAP.get(c.chordId);
-            return (
-              <div key={c.chordId} className="grid grid-cols-[6.5rem_1fr_3rem] items-center gap-2 text-xs">
-                <span className="flex items-center space-x-1.5 min-w-0">
-                  <ChordDot chordId={c.chordId} />
-                  <span className="font-semibold text-slate-800 truncate">{chord?.displayIdentity ?? c.chordId}</span>
-                </span>
-                <span className="h-2.5 rounded-full bg-slate-200/80 overflow-hidden">
-                  <span
-                    className="block h-full rounded-full ring-1 ring-inset ring-black/10"
-                    style={{ width: `${(c.correct / c.total) * 100}%`, backgroundColor: chord?.colorHex }}
-                  />
-                </span>
-                <span className="text-right font-bold text-slate-700 tabular-nums">{c.correct} / {c.total}</span>
-              </div>
-            );
-          })}
-        </div>
+        <ChordTallyRows tallies={summary.perChord} />
       </div>
 
       <div className="space-y-2">
@@ -404,6 +403,32 @@ function SessionDetail({ summary }: { summary: SessionSummary }) {
           The session ended during a correction, before the correct card was tapped.
         </p>
       )}
+    </div>
+  );
+}
+
+/** First-answer accuracy per chord: dot and name, a bar in the chord's colour, then "4 / 6". */
+function ChordTallyRows({ tallies }: { tallies: ChordTally[] }) {
+  return (
+    <div className="space-y-1.5">
+      {tallies.map(c => {
+        const chord = CHORDS_MAP.get(c.chordId);
+        return (
+          <div key={c.chordId} className="grid grid-cols-[6.5rem_1fr_3rem] items-center gap-2 text-xs">
+            <span className="flex items-center space-x-1.5 min-w-0">
+              <ChordDot chordId={c.chordId} />
+              <span className="font-semibold text-slate-800 truncate">{chord?.displayIdentity ?? c.chordId}</span>
+            </span>
+            <span className="h-2.5 rounded-full bg-slate-200/80 overflow-hidden">
+              <span
+                className="block h-full rounded-full ring-1 ring-inset ring-black/10"
+                style={{ width: `${(c.correct / c.total) * 100}%`, backgroundColor: chord?.colorHex }}
+              />
+            </span>
+            <span className="text-right font-bold text-slate-700 tabular-nums">{c.correct} / {c.total}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
