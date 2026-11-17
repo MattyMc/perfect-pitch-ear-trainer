@@ -49,7 +49,7 @@ All permit redistribution with the notice retained; none is copyleft. Build-time
 ## Other shipped assets
 
 - **App icons** (`public/icon-192.png`, `public/icon-512.png`) are generated from original geometry by `scripts/generate-icons.mjs`. No third-party material.
-- **Speech** uses the platform's Web Speech API voices at runtime. No voice recordings are shipped.
+- **Speech**: none. The app no longer uses the Web Speech API.
 - **Fonts:** the system font stack. No web fonts are shipped.
 
 ## The application itself

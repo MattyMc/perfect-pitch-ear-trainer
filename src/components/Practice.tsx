@@ -22,7 +22,7 @@ interface PracticeProps {
   onExit: () => void;
 }
 
-type TrialState = 'Initializing' | 'NeedsResumeTap' | 'Ready' | 'Playing' | 'Awaiting' | 'Correct' | 'Correcting' | 'PlayingCorrection' | 'CorrectionTap' | 'Done';
+type TrialState = 'Initializing' | 'NeedsResumeTap' | 'Ready' | 'Playing' | 'Awaiting' | 'Correct' | 'CorrectionTap' | 'Done';
 
 export default function Practice({ profileId, activeChordIds, trialsPerSession, chordDurationMs, inputLockMs, chordLabels, onExit }: PracticeProps) {
   const [sequence, setSequence] = useState<string[]>([]);
@@ -32,14 +32,18 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
   // Trial tracking
   const [sessionId, setSessionId] = useState<string>('');
   const [replayCount, setReplayCount] = useState(0);
-  const [firstAnswerId, setFirstAnswerId] = useState<string | null>(null);
-  const [correctionTaps, setCorrectionTaps] = useState(0);
   const [trialResults, setTrialResults] = useState<boolean[]>([]);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [currentTrialId, setCurrentTrialId] = useState<string>(newId());
 
   const isMountedRef = useRef(true);
   const isProcessingRef = useRef(false);
+  /**
+   * The id of the trial whose miss is waiting for a tap on the right card, or null. The replay
+   * after a miss is asynchronous and the card is live throughout, so each replay checks this
+   * to learn whether the child has already moved on.
+   */
+  const correctingTrialRef = useRef<string | null>(null);
 
   const isScoredSession = activeChordIds.length > 1;
 
@@ -163,10 +167,17 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
       return;
     }
 
-    isProcessingRef.current = true;
     updateActivity();
-    const prevState = trialState;
-    setTrialState(prevState === 'Awaiting' ? 'Playing' : 'PlayingCorrection');
+    if (trialState === 'CorrectionTap') {
+      // After a miss the right card stays live: no lock, so the child can tap as soon as they
+      // like. Not counted: the trial was saved when it was answered.
+      await playOrReport(chord.midiNotes);
+      if (isMountedRef.current && correctingTrialRef.current !== currentTrialId) audio.stopChord();
+      return;
+    }
+
+    isProcessingRef.current = true;
+    setTrialState('Playing');
 
     const result = await playOrReport(chord.midiNotes);
     if (!isMountedRef.current) return;
@@ -177,7 +188,7 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
       if (!isMountedRef.current) return;
     }
     // Replay is itself a tap, so 'needs-tap' just means "press it again".
-    setTrialState(prevState);
+    setTrialState('Awaiting');
     isProcessingRef.current = false;
   };
 
@@ -186,33 +197,28 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
    * deleted this profile from another tab), in which case nothing was written and the caller
    * should leave.
    */
-  const saveTrial = async (correct: boolean, firstAns: string | null, isComplete = true): Promise<boolean> => {
+  const saveTrial = async (correct: boolean, firstAns: string): Promise<boolean> => {
     if (!currentChordId) return true;
 
-    if (isComplete && !trialResults[currentIndex]) {
-       // Only add to results array when fully completed to avoid double entry
-       setTrialResults(prev => {
-         const newResults = [...prev];
-         newResults[currentIndex] = correct;
-         return newResults;
-       });
-    }
+    setTrialResults(prev => {
+      const newResults = [...prev];
+      newResults[currentIndex] = correct;
+      return newResults;
+    });
 
     const presentedGridIndex = activeChordIds.indexOf(currentChordId);
-    const firstAnswerGridIndex = firstAns ? activeChordIds.indexOf(firstAns) : undefined;
+    const firstAnswerGridIndex = activeChordIds.indexOf(firstAns);
 
     if (isScoredSession) {
       const now = Date.now();
-      const isCompleted = isComplete && (currentIndex + 1 >= trialsPerSession);
-      const sessionPatch = isComplete
-        ? {
-            scoredTrialCount: currentIndex + 1,
-            lastActivityAt: now,
-            status: isCompleted ? 'completed' as const : 'active' as const,
-            endReason: isCompleted ? 'target_reached' as const : null,
-            endedAt: isCompleted ? now : null,
-          }
-        : { lastActivityAt: now };
+      const isCompleted = currentIndex + 1 >= trialsPerSession;
+      const sessionPatch = {
+        scoredTrialCount: currentIndex + 1,
+        lastActivityAt: now,
+        status: isCompleted ? 'completed' as const : 'active' as const,
+        endReason: isCompleted ? 'target_reached' as const : null,
+        endedAt: isCompleted ? now : null,
+      };
 
       const written = await recordTrial({
         id: currentTrialId,
@@ -226,8 +232,11 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
         firstAnswerGridIndex,
         firstAnswerCorrect: correct,
         completedAtUtc: now,
-        correctionTapCount: correctionTaps,
-        correctionIncomplete: !isComplete,
+        // The trial is finished the moment it is answered, and only the right card is live
+        // after a miss, so there is nothing to count or leave unfinished. Both fields remain
+        // for sessions recorded when the correction was a longer, separately saved step.
+        correctionTapCount: 0,
+        correctionIncomplete: false,
       }, sessionPatch);
       if (!written) {
         onExit();
@@ -247,8 +256,6 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
       const nextIdx = currentIndex + 1;
       setCurrentIndex(nextIdx);
       setReplayCount(0);
-      setFirstAnswerId(null);
-      setCorrectionTaps(0);
       setCurrentTrialId(newId());
 
       // Brief silent pause before presenting next stimulus
@@ -260,76 +267,52 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
     }
   };
 
+  // Cards are drawn only when they can be tapped; otherwise an empty outline holds the place.
   const isInputLocked = trialState !== 'Awaiting' && trialState !== 'CorrectionTap';
 
   const handleCardTap = async (tappedChordId: string) => {
     if (!isMountedRef.current || !currentChordId || isInputLocked || isProcessingRef.current) return;
-    
-    isProcessingRef.current = true;
-    // A tap during the chord answers it, so the chord stops rather than ringing under the
-    // chime or the spoken correction.
+
+    // A tap during the chord answers it, so the chord stops rather than ringing on.
     audio.stopChord();
 
-    if (trialState === 'Awaiting') {
-      const isCorrect = tappedChordId === currentChordId;
-      setFirstAnswerId(tappedChordId);
-      
-      if (isCorrect) {
-        setTrialState('Correct');
-        audio.playSuccessTone();
-        if (!(await saveTrial(true, tappedChordId, true))) return;
-        
-        // Let success chime finish
-        await new Promise(r => setTimeout(r, 850));
-        if (!isMountedRef.current) return;
-        advanceTrial();
-      } else {
-        if (!(await saveTrial(false, tappedChordId, false))) return;
-        setTrialState('Correcting');
-        const correctChord = CHORDS_MAP.get(currentChordId)!;
-        
-        // 1. Speak neutral correction
-        await audio.speak(`That was ${correctChord.displayIdentity}`);
-        if (!isMountedRef.current) return;
-
-        await new Promise(r => setTimeout(r, 300));
-        if (!isMountedRef.current) return;
-
-        // 2. Replay correct chord. The wrong tap may have just rebuilt the audio (after a return
-        // from the background); play() waits until the piano is ready. If sound needs another
-        // tap, skip the replay rather than show Continue, which would restart the trial and let
-        // the next tap count as a first answer. Replay is itself a tap and can bring it back.
-        setTrialState('PlayingCorrection');
-        const result = await playOrReport(correctChord.midiNotes);
-        if (!isMountedRef.current) return;
-        if (result === 'failed') {
-          isProcessingRef.current = false;
-          return;
-        }
-        if (result === 'played') {
-          await new Promise(r => setTimeout(r, inputLockMs));
-          if (!isMountedRef.current) return;
-        }
-
-        // 3. Allow correction tap on target card
-        setTrialState('CorrectionTap');
-        isProcessingRef.current = false;
-      }
-    } else if (trialState === 'CorrectionTap') {
-      if (tappedChordId === currentChordId) {
-        setTrialState('Correct');
-        audio.playSuccessTone();
-        if (!(await saveTrial(false, firstAnswerId, true))) return;
-
-        // Let success chime finish
-        await new Promise(r => setTimeout(r, 850));
-        if (!isMountedRef.current) return;
-        advanceTrial();
-      } else {
-        setCorrectionTaps(prev => prev + 1);
-        isProcessingRef.current = false;
-      }
+    if (trialState === 'CorrectionTap') {
+      // Only the right card is live here. No chime: this tap just moves things along.
+      if (tappedChordId !== currentChordId) return;
+      isProcessingRef.current = true;
+      correctingTrialRef.current = null;
+      advanceTrial();
+      return;
     }
+
+    isProcessingRef.current = true;
+    const isCorrect = tappedChordId === currentChordId;
+    // The screen answers the tap at once; the write follows.
+    setTrialState(isCorrect ? 'Correct' : 'CorrectionTap');
+    const missToneMs = isCorrect ? 0 : audio.playMissTone();
+    if (isCorrect) audio.playSuccessTone();
+    if (!(await saveTrial(isCorrect, tappedChordId))) return;
+
+    if (isCorrect) {
+      // Let success chime finish
+      await new Promise(r => setTimeout(r, 850));
+      if (!isMountedRef.current) return;
+      advanceTrial();
+      return;
+    }
+
+    // A miss: a short, soft note, the other cards empty out, and the right card is live
+    // straight away, with no lock, so the child can tap it and move on. The chord plays again
+    // once that note has faded to its tail, so the two don't smear together.
+    correctingTrialRef.current = currentTrialId;
+    isProcessingRef.current = false;
+    await new Promise(r => setTimeout(r, missToneMs));
+    // The child may already have tapped the right card.
+    if (!isMountedRef.current || correctingTrialRef.current !== currentTrialId) return;
+    // If the sound needs another tap, the card tap or Replay provides it.
+    await playOrReport(CHORDS_MAP.get(currentChordId)!.midiNotes);
+    // Or tapped while the piano was getting ready.
+    if (isMountedRef.current && correctingTrialRef.current !== currentTrialId) audio.stopChord();
   };
 
   if (trialState === 'Initializing') {
@@ -390,19 +373,7 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
 
       {/* Central Ear/Replay Area */}
       <div className="flex items-center justify-center h-24 mb-4">
-        { (trialState === 'Correcting' || trialState === 'PlayingCorrection') ? (
-           <div className="flex flex-col items-center space-y-2">
-             <span className="text-2xl font-bold text-slate-800">
-               {trialState === 'Correcting' ? `That was ${currentChord?.displayIdentity}!` : `Listen to ${currentChord?.displayIdentity}`}
-             </span>
-             {trialState === 'PlayingCorrection' && (
-                <div className="flex items-center space-x-2 text-blue-500">
-                  <Ear className="w-6 h-6 animate-pulse" />
-                  <span className="text-sm font-bold uppercase tracking-wider">Playing</span>
-                </div>
-             )}
-           </div>
-        ) : trialState === 'Playing' ? (
+        {trialState === 'Playing' ? (
            <div className="flex flex-col items-center space-y-1.5">
              <div className="relative flex items-center justify-center">
                <Ear className="w-12 h-12 text-blue-500 animate-pulse relative z-10" />
@@ -410,7 +381,7 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
              </div>
              <span className="text-xs font-semibold text-blue-600">Listen</span>
            </div>
-        ) : (trialState === 'Awaiting') ? (
+        ) : (trialState === 'Awaiting' || trialState === 'CorrectionTap') ? (
            <button 
              onClick={handleReplay} 
              className="p-3 px-6 bg-white text-blue-600 rounded-full active:bg-blue-50 hover:bg-slate-50 transition-colors flex items-center justify-center space-x-2 shadow-sm border border-blue-100 cursor-pointer"
@@ -418,19 +389,6 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
              <RotateCw className="w-6 h-6" />
              <span className="text-base font-bold">Replay</span>
            </button>
-        ) : trialState === 'CorrectionTap' ? (
-           <div className="flex flex-col items-center space-y-2">
-             <span className="text-2xl font-bold text-slate-800">
-               Tap {currentChord?.displayIdentity}
-             </span>
-             <button 
-               onClick={handleReplay} 
-               className="p-2 px-4 bg-white text-blue-600 rounded-full active:bg-blue-50 hover:bg-slate-50 transition-colors flex items-center justify-center space-x-1.5 shadow-sm border border-blue-100 cursor-pointer text-sm font-bold"
-             >
-               <RotateCw className="w-4 h-4" />
-               <span>Replay</span>
-             </button>
-           </div>
         ) : trialState === 'Correct' ? (
            <div className="flex items-center space-x-2 text-green-600 font-bold text-lg">
              <Check className="w-6 h-6" />
@@ -445,73 +403,44 @@ export default function Practice({ profileId, activeChordIds, trialsPerSession, 
           {activeChordIds.map(id => {
             const chord = CHORDS_MAP.get(id)!;
             const isTarget = id === currentChordId;
-            const isCorrectionPhase = trialState === 'Correcting' || trialState === 'PlayingCorrection' || trialState === 'CorrectionTap';
-            
-            let opacity = "opacity-100";
-            let scale = "scale-100";
-            let pointerEvents = "pointer-events-auto cursor-pointer";
-            let extraStyles = "";
-            
-            if (isCorrectionPhase) {
-               if (isTarget) {
-                 opacity = "opacity-100 z-10";
-                 scale = "scale-110";
-                 extraStyles = "ring-8 ring-blue-500 shadow-2xl";
-                 if (trialState === 'CorrectionTap') {
-                   extraStyles += " animate-pulse";
-                 }
-               } else {
-                 opacity = "opacity-10";
-                 scale = "scale-75";
-                 extraStyles = "grayscale";
-                 pointerEvents = "pointer-events-none";
-                 
-                 // Highlight the incorrectly tapped card briefly
-                 if (firstAnswerId === id && trialState === 'Correcting') {
-                    extraStyles += " ring-4 ring-red-400 opacity-60";
-                 }
-               }
-            } else if (trialState === 'Playing') {
-               opacity = "opacity-40 grayscale-[0.2]";
-               pointerEvents = "pointer-events-none";
-            }
-            
-            if (trialState === 'Correct' && isTarget) {
-               scale = "scale-105 shadow-xl ring-4 ring-green-400";
-            }
-            
-            const isDisabled = isInputLocked || (isCorrectionPhase && !isTarget);
-            const showsPointer = trialState === 'CorrectionTap' && isTarget;
             const label = chordLabel(chord, chordLabels);
-            if (isDisabled) {
-               pointerEvents = "pointer-events-none";
+            const isLive = trialState === 'Awaiting' || (trialState === 'CorrectionTap' && isTarget);
+            // The card just answered correctly stays out, ringed, while the chime plays.
+            const isCelebrated = trialState === 'Correct' && isTarget;
+
+            let cardState: string;
+            if (isLive) {
+              cardState = 'opacity-100 scale-100 shadow-sm active:scale-95 cursor-pointer';
+            } else if (isCelebrated) {
+              cardState = 'opacity-100 scale-105 shadow-xl ring-4 ring-green-400 pointer-events-none';
+            } else {
+              // Emptied, not dimmed: a faded card still looks like something to tap.
+              cardState = 'opacity-0 pointer-events-none';
             }
 
             return (
-              <button
+              <div
                 key={id}
-                data-chord-id={id}
-                onClick={() => handleCardTap(id)}
-                disabled={isDisabled}
-                className={`relative overflow-hidden rounded-[2rem] shadow-sm transition-all duration-300 ${!isDisabled ? 'active:scale-95' : ''} ${opacity} ${scale} ${pointerEvents} ${extraStyles}`}
-                style={{ backgroundColor: chord.colorHex, minHeight: '72px' }}
+                className={`relative rounded-[2rem] border-[3px] border-dashed transition-colors duration-150 ${isLive || isCelebrated ? 'border-transparent' : 'border-slate-300'}`}
+                style={{ minHeight: '72px' }}
               >
-                {label && !showsPointer && (
-                   <span
-                     className="absolute inset-0 flex items-center justify-center text-3xl font-black tracking-tight"
-                     style={{ color: labelInkFor(chord.colorHex) }}
-                   >
-                     {label}
-                   </span>
-                )}
-                {showsPointer && (
-                   <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-16 h-16 bg-white/40 rounded-full flex items-center justify-center backdrop-blur-sm shadow-inner animate-bounce">
-                         <span className="text-3xl relative top-1 drop-shadow-sm">👆</span>
-                      </div>
-                   </div>
-                )}
-              </button>
+                <button
+                  data-chord-id={id}
+                  onClick={() => handleCardTap(id)}
+                  disabled={!isLive}
+                  className={`absolute -inset-[3px] overflow-hidden rounded-[2rem] transition-all duration-150 motion-reduce:transition-none ${cardState}`}
+                  style={{ backgroundColor: chord.colorHex }}
+                >
+                  {label && (
+                     <span
+                       className="absolute inset-0 flex items-center justify-center text-3xl font-black tracking-tight"
+                       style={{ color: labelInkFor(chord.colorHex) }}
+                     >
+                       {label}
+                     </span>
+                  )}
+                </button>
+              </div>
             );
           })}
         </div>

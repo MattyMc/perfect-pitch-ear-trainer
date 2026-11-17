@@ -10,7 +10,7 @@ Binding product decisions, each with its **implementation status** as verified a
 | D-002 | Child practice is portrait-only | Interface aid | Implemented | `RotateDeviceOverlay` in both `App` branches; manifest `portrait-primary`. |
 | D-003 | 375 × 667 is the smallest fully supported practice viewport | Product boundary | Not implemented | Nothing checks, tests, or budgets for it. The 4-column grid is marginal there. |
 | D-004 | Child targets have a 72 × 72 px floor; 88–112 preferred | Interface aid | Partial | Cards have `minHeight: 72px` only. Hold-to-exit is 48 px; replay button is smaller than 72 px. |
-| D-005 | All active cards remain visible and stable within a level | Reported method + interface aid | Implemented | Grid order is `activeChordIds`; shape is a pure function of count. Cards are heavily dimmed, not hidden, during correction. |
+| D-005 | All active cards remain visible and stable within a level | Reported method + interface aid | Implemented | Grid order is `activeChordIds`; shape is a pure function of count. **Changed:** the cards keep their positions, but a card is drawn only while it can be tapped. While a chord starts and during feedback each card is an empty dashed outline in its place. A 5-year-old could not read dimming as "not yet". |
 | D-006 | Red-only use is unscored familiarisation; testing begins with Red and Yellow | Operational definition | Implemented | `App.tsx` forks on `length === 1` to `IntroMode`, which writes no trials. Side effect in known-issues (intro sessions count as sessions). |
 | D-007 | The exact 14 chord voicings, colours, and order are immutable curriculum data | Reported method | Implemented as data | `src/chords.ts`. Verified against Sakakibara (2014) Figures 2–3 and Table 1. Immutable by convention only: no version, fixture, or runtime guard. |
 | D-008 | Phase A exposes only colour identities to the child | Reported method | Implemented by default | Only `displayIdentity` and `colorHex` reach child screens or speech. Cards carry no text or aria-label. Applies to all 14 chords, not just Phase A. A parent can opt out per profile; see D-038. |
@@ -22,8 +22,8 @@ Binding product decisions, each with its **implementation status** as verified a
 | D-014 | Balanced randomised queues replace adaptive weighting | Operational definition | Implemented | `generateSessionSequence`: counts differ by at most one; Fisher–Yates shuffle; no weighting. |
 | D-015 | Red is never hard-coded as the first chord | Operational definition | Implemented | Opener is whatever the shuffle produces. |
 | D-016 | No more than two identical consecutive stimuli or session openers | Operational definition | Partial | Within a session: rejects three in a row, up to 100 reshuffles, then returns the last shuffle unvalidated. Openers across sessions: not constrained. |
-| D-017 | The first valid answer is immutable and determines accuracy | Reported method + scoring definition | Implemented | `firstAnswerId` set once in `Awaiting`; correction re-puts the row with `firstAnswerCorrect: false`. |
-| D-018 | Incorrect responses receive an immediate neutral label, replay, and required correction tap | Reported method | Implemented | Speak "That was X" → 300 ms → replay → target-only tap. Non-target cards disabled, so `correctionTapCount` is always 0. |
+| D-017 | The first valid answer is immutable and determines accuracy | Reported method + scoring definition | Implemented | The trial row is written once, from the first tap in `Awaiting`; nothing after it can change it. |
+| D-018 | Incorrect responses receive an immediate replay and a tap on the correct card | Operational definition | Implemented | Soft marimba-like note (quieter than the chime) → other cards empty out → chord replays → the right card is live immediately → tap moves on, no chime. **Changed** from spoken label, pause, locked replay, pointer, and chimed tap, which the child found punishing. |
 | D-019 | Replay is allowed and tracked but not automatically wrong | Operational definition | Implemented | Replay button in `Awaiting` and `CorrectionTap`; `replayCount` persisted; no scoring effect. |
 | D-020 | Ten minutes of inactivity ends an in-progress session | Operational definition | Implemented, lazily | `SESSION_IDLE_TIMEOUT_MS`; evaluated only when `Practice` mounts. No in-session timer. |
 | D-021 | 20–24 trials closed by timeout or exit are `completed_short`; 1–19 are `interrupted` | Reported range + operational definition | Implemented | `closedStatusFor(session)` in `db.ts`: reaching `plannedTrialCount` is `completed`, 20 or more is `completed_short`, 1–19 `interrupted`, 0 `discarded`. Used by `endSession` and the stale sweep. |
@@ -86,6 +86,6 @@ Still unresolved. Do not resolve these silently in code; record the decision her
 5. **Import and CSV.** Build them, or downgrade D-031 to "JSON export only".
 6. Final colour hex values after on-device and colour-vision testing.
 7. Minimum supported iOS/Safari version.
-8. Recorded voice versus Web Speech synthesis; vocabulary; localisation.
+8. Whether to bring back a voice, as recordings. Web Speech synthesis was removed as unreliable.
 9. Whether to add isolated-note assessment as a separate, hint-free mode.
 10. Whether Phase B remains usable at 375 × 667 if it is built.

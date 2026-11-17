@@ -26,7 +26,9 @@ Card order is `activeChordIds` order and never changes within a level. Grid shap
 
 Layout changes when the count crosses 2, 4, 6, or 9, which is the moment a new chord is introduced, so positions are stable within a level and move between levels. With 10 to 13 chords the last row of the 4×4 is partially filled.
 
-Cards are `<button>` elements filled with `colorHex`, `rounded-[2rem]`, and an inline `minHeight: 72px`. They have **no text, no `aria-label`, and no `title`**, so nothing can leak the identity, and screen readers get nothing. In `Playing` all cards are at 40% opacity. In `CorrectionTap` the target card pulses with a ring and a pointing-hand emoji while every other card is dimmed to 10%, greyscaled, shrunk, disabled, and `pointer-events-none`.
+Cards are `<button>` elements filled with `colorHex`, `rounded-[2rem]`, and an inline `minHeight: 72px`. They have **no text, no `aria-label`, and no `title`**, so nothing can leak the identity, and screen readers get nothing. 
+
+**A card is drawn only while it can be tapped.** Otherwise (`opacity-0`, disabled) it leaves an empty dashed outline in its place, so the layout does not move and the background stays light throughout. All cards are empty while a chord starts (`Playing`, for the input lock) and between trials. After a correct answer the tapped card stays out with a green ring while the chime plays. After a wrong answer the right card alone stays out, live at once, while the chord replays; tapping it moves on. Cards are emptied and not dimmed because a faded card still looks tappable to a 5-year-old, and because fading a card's colour blurs the one thing that identifies it. The change is a 150 ms fade, dropped under `prefers-reduced-motion`.
 
 ### Target sizes
 
@@ -46,16 +48,16 @@ The decision log asks for a 72 px floor with 88 to 112 px preferred. The build h
 ## What the child hears
 
 - Piano chords from the sampler.
-- Spoken colour words during intro ("Red") and correction ("That was Red").
+- No voice. Nothing is spoken.
 - The intro instruction "Listen to the sound, then tap the card."
 - A two-note rising chime after a correct answer.
-- Nothing after a wrong answer except the spoken label.
+- After a wrong answer: a short, soft marimba-like note, quieter than the chime, then the chord once more. No chime when the right card is then tapped.
 
 ## Identity leak audit
 
-Checked 9 September 2026. No note name, chord name, or the word "chord" appears in any child-facing rendered or spoken text. Colour words are the only identity, and they appear only where the method intends: during intro and during correction. Note names and voicings appear only in the parent guide behind the parent gate. The browser tab title ("Perfect Pitch Ear Training for Kids: Eguchi Method | Matt McInnis") is visible in a browser but hidden in standalone mode; the home-screen label is "Perfect Pitch". Neither names a note or chord.
+Checked 9 September 2026. No note name, chord name, or the word "chord" appears in any child-facing rendered text. Colour words are the only identity, and they appear only where the method intends: during intro and during correction. Note names and voicings appear only in the parent guide behind the parent gate. The browser tab title ("Perfect Pitch Ear Training for Kids: Eguchi Method | Matt McInnis") is visible in a browser but hidden in standalone mode; the home-screen label is "Perfect Pitch". Neither names a note or chord.
 
-The one exception is opt-in: with **Chord names on cards** set to Basic or Full (D-038, off by default), each card carries its chord name. Nothing is ever spoken differently.
+The one exception is opt-in: with **Chord names on cards** set to Basic or Full (D-038, off by default), each card carries its chord name.
 
 ## Feedback the child sees that the decision log did not intend
 

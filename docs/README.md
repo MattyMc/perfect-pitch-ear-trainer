@@ -13,7 +13,7 @@ This directory describes Matt McInnis' Perfect Pitch Ear Training for Kids, the 
 | The method, its evidence, and how conservative to be about claims | [method.md](method.md) |
 | The exact 14 chords, colours, voicings, and ordering invariants | [curriculum.md](curriculum.md) |
 | Sessions, trials, scoring, correction, scheduling, timeouts | [practice-engine.md](practice-engine.md) |
-| Tone.js, the piano samples, timing, speech | [audio.md](audio.md) |
+| Tone.js, the piano samples, timing, feedback sounds | [audio.md](audio.md) |
 | What the child sees and touches | [child-ux.md](child-ux.md) |
 | Onboarding, the parent gate, the dashboard, advancement, the guide | [parent-experience.md](parent-experience.md) |
 | IndexedDB schema, export, privacy, offline status | [data-and-privacy.md](data-and-privacy.md) |
@@ -46,14 +46,16 @@ These hold in the current build and should not be changed without revising the d
 
 - Any number of named local profiles per installation, each with its own curriculum position and history. A profile is a display name only: no login, no account, no network requests. All records stay in the browser's IndexedDB, and the profile creation screen says so.
 - Portrait-only child practice.
-- All active answer cards are visible at once and keep their positions within a level.
+- All active answer cards are shown at once when it is the child's turn, and keep their positions within a level.
 - One active chord is unscored familiarisation (`IntroMode`). Scored practice begins at two chords.
 - The 14 chords, their voicings, colours, and order are fixed data. New chords are appended, never reordered.
 - Chords are presented in a balanced, shuffled bag. Red is never forced to open a session.
 - The first answer determines the trial's accuracy. A correction never rewrites it.
-- A wrong answer gets an immediate, neutral spoken label, a replay, and a required tap on the correct card.
+- A wrong answer gets a short, soft sound and a replay, with only the correct card left to tap. The correct card is never locked, so the child can tap it and move on.
+- Nothing is spoken anywhere in the app.
+- An answer card is drawn only while the child may tap it. Otherwise an empty outline holds its place.
 - Advancement is never automatic. The parent introduces every new chord.
-- By default the child never sees a note name or chord name; only colour names appear or are spoken. A parent can turn on chord names on the cards (D-038).
+- By default the child never sees a note name or chord name; only colour names appear. A parent can turn on chord names on the cards (D-038).
 - No advertising, third-party analytics, leaderboards, punitive feedback, adaptive drilling, or microphone use.
 
 ## Where the spec and the code still disagree

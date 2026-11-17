@@ -140,7 +140,7 @@ export default function ParentGuide({
                   <li>Let the chord play.</li>
                   <li>Let your child choose without help.</li>
                   <li>If correct, the app moves on.</li>
-                  <li>If incorrect, the app identifies and replays the correct chord. Your child then taps the correct colour.</li>
+                  <li>If incorrect, the app plays a soft sound, replays the chord, and leaves only the correct colour on screen. Your child taps it to carry on.</li>
                   <li>
                     Keep corrections calm and neutral (e.g. state <em>“That was Yellow”</em> in a flat, reassuring tone without commentary. See Section 4).
                   </li>
@@ -238,8 +238,8 @@ export default function ParentGuide({
                   "The child taps the colour associated with that sound.",
                   "Only the first valid answer is scored for accuracy.",
                   "A correct answer advances immediately to the next trial.",
-                  "An incorrect answer starts the calm correction sequence.",
-                  "The child taps the correct card before continuing."
+                  "An incorrect answer plays a soft sound and replays the chord.",
+                  "Only the correct card is left; the child taps it to continue."
                 ].map((step, idx) => (
                   <div key={idx} className="flex items-start space-x-3 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
                     <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
@@ -283,7 +283,7 @@ export default function ParentGuide({
                 <p>Then:</p>
                 <ul className="list-disc list-inside space-y-1 pl-1">
                   <li>Let the app replay the chord.</li>
-                  <li>Allow the app to highlight the correct card.</li>
+                  <li>The app leaves only the correct card on screen.</li>
                   <li>Have the child tap the correct colour.</li>
                   <li>Continue without discussing or lecturing about the mistake.</li>
                 </ul>

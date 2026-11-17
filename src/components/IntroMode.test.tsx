@@ -19,7 +19,6 @@ const mocks = vi.hoisted(() => {
     }),
     stopChord: vi.fn(),
     playSuccessTone: vi.fn(() => 450),
-    speak: vi.fn(async () => {}),
   };
   return { AudioNeedsGestureError, audio };
 });
@@ -32,9 +31,8 @@ import { CHORDS_MAP } from '../chords';
 import type { ChordLabelStyle } from '../db';
 
 const RED_NOTES = CHORDS_MAP.get('red')?.midiNotes;
-const INSTRUCTION = 'Listen to the sound, then tap the card.';
-/** The mount delay, then the pause after the spoken instruction, before the first chord. */
-const FIRST_CHORD_DELAY_MS = 300 + 400;
+/** The mount delay before the first chord. */
+const FIRST_CHORD_DELAY_MS = 300;
 
 const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
 const renderIntro = (chordLabels: ChordLabelStyle = 'off') =>
@@ -59,11 +57,10 @@ describe('IntroMode', () => {
     vi.useRealTimers();
   });
 
-  it('gives the spoken instruction, then plays the chord for the configured length', async () => {
+  it('plays the chord for the configured length', async () => {
     renderIntro();
     await advance(FIRST_CHORD_DELAY_MS);
 
-    expect(mocks.audio.speak).toHaveBeenCalledWith(INSTRUCTION);
     expect(mocks.audio.playChord).toHaveBeenCalledWith(RED_NOTES, 3000);
   });
 
@@ -74,14 +71,6 @@ describe('IntroMode', () => {
     await act(async () => { fireEvent.click(getByText('Continue')); });
     await advance(400);
     expect(mocks.audio.playChord).toHaveBeenCalledWith(RED_NOTES, 3000);
-  });
-
-  it('Continue reruns the first step from the spoken instruction', async () => {
-    const { getByText } = await renderNeedingTap();
-    mocks.audio.speak.mockClear();
-
-    await act(async () => { fireEvent.click(getByText('Continue')); });
-    expect(mocks.audio.speak).toHaveBeenCalledWith(INSTRUCTION);
   });
 
   it('the Continue screen still offers hold-to-exit', async () => {

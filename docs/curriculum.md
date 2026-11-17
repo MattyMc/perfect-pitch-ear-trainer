@@ -62,5 +62,5 @@ Colours are Tailwind palette values chosen for mutual distinctness. Yellow is a 
 
 ## Where the curriculum is displayed
 
-- **Child:** only `colorHex` (the card) and `displayIdentity` (spoken during intro and correction, and shown as "Tap Red" / "That was Red!"). Cards carry no text and no `aria-label`.
+- **Child:** only `colorHex` (the card) and `displayIdentity` (shown as "Tap the Red card" in the intro). Cards carry no text and no `aria-label`.
 - **Parent:** the dashboard shows active swatches with colour names. The guide (section 6) lists all 14 with order, voicing, and note names, each tappable to preview the chord.

@@ -54,8 +54,8 @@ interface Trial {
   firstAnswerGridIndex?: number;
   firstAnswerCorrect: boolean;       // the one metric everything derives from
   completedAtUtc: number;
-  correctionTapCount: number;        // always 0 in practice, see known-issues
-  correctionIncomplete?: boolean;    // true between a wrong answer and the corrective tap
+  correctionTapCount: number;        // always 0, see known-issues
+  correctionIncomplete?: boolean;    // always false now; true on old rows abandoned mid-correction
 }
 ```
 
@@ -106,7 +106,7 @@ Checked on 9 September 2026 by grepping `src/`, `index.html`, and `public/`:
 - No `localStorage`, `sessionStorage`, or cookies. The active-profile pointer lives in the `meta` table, not `localStorage`.
 - A profile is a display name in IndexedDB and nothing else. The profile creation screen (`PrivacyNotice` in `ProfileForm.tsx`) tells the parent that there is no account or sync, that everything stays in this browser, and that clearing site data erases it. Keep that text truthful against this section.
 - No analytics, ads, or third-party scripts.
-- No microphone or speech recognition; the Web Speech API is used for **output** only.
+- No microphone, speech recognition, or speech synthesis.
 - The only outbound links are three research citations in the parent guide, opened with `rel="noreferrer"`.
 
 `package.json` now declares only the six libraries the bundle ships under `dependencies`; the AI Studio leftovers (`@google/genai` and friends, and the `metadata.json` that declared a Gemini capability) were removed on 19 September 2026, so a dependency audit and the privacy story agree.

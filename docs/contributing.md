@@ -36,7 +36,7 @@ Rules for changing this app without breaking the method or the data. Toolchain m
 
 `npm run verify` runs lint, the tests and the build, and a pre-push hook (`.githooks/pre-push`, enabled by `npm install`) runs it against the tip of each pushed ref in a clean worktree, using the Node from `.nvmrc`. A push that would fail the deploy therefore fails locally first. `git push --no-verify` skips it.
 
-The tests don't reach Dexie, real audio, or most screens, so still verify behaviour by hand in a narrow portrait viewport (the app blanks in landscape). At minimum after a change to the practice loop: a correct answer, a wrong answer through the full correction, a replay, hold-to-exit mid-session, and a resume within ten minutes.
+The tests don't reach Dexie, real audio, or most screens, so still verify behaviour by hand in a narrow portrait viewport (the app blanks in landscape). At minimum after a change to the practice loop: a correct answer, a wrong answer through the tap on the right card, a replay, hold-to-exit mid-session, and a resume within ten minutes.
 
 ## Updating the docs
 

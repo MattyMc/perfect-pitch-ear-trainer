@@ -440,10 +440,7 @@ export default function ParentDashboard({ profile, config, profiles, onExit, onS
                   setIsPlayingTest(false);
                   return;
                 }
-                setTimeout(() => {
-                  audio.speak("Red");
-                  setIsPlayingTest(false);
-                }, chordDurationMs);
+                setTimeout(() => setIsPlayingTest(false), chordDurationMs);
               }}
               disabled={isPlayingTest}
               className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 shadow-sm disabled:opacity-50 transition-colors"

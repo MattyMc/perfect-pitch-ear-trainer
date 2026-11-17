@@ -10,7 +10,7 @@ Bugs and inconsistencies confirmed in the code on 9 September 2026. None is fixe
 
 3. **Unhandled audio-load failures outside `Practice`.** `IntroMode`, `ParentDashboard`, and `ParentGuide` call `audio.play()` without try/catch. `Practice` is the only caller with an error screen. `IntroMode` would sit on its listening indicator indefinitely.
 
-4. **`correctionTapCount` is dead.** Non-target cards are disabled during `CorrectionTap`, so the increment never runs and the field is always 0.
+4. **`correctionTapCount` and `correctionIncomplete` are dead fields.** The trial is saved once, at the first answer, and only the right card is live after a miss, so they are always written as `0` and `false`. `SessionHistory` still reads `correctionIncomplete` for older rows. Replays pressed after a miss are not saved either.
 
 5. **Scheduler falls back silently.** After 100 rejected shuffles `generateSessionSequence` returns the last, possibly invalid, sequence. Realistically only reachable with two chords and a small trial count.
 
@@ -40,4 +40,4 @@ Bugs and inconsistencies confirmed in the code on 9 September 2026. None is fixe
 
 16. **Timing is coarse in a hidden tab.** Chrome batches main-thread timers in a hidden tab into roughly one wake-up a second (measured 28 September 2026: a 500 ms `setTimeout` took 1.0–2.1 s; the same timer in a Web Worker took 504 ms). Every wait in `Practice` and `IntroMode` is a main-thread `setTimeout`, so a backgrounded session runs its locks and pauses late. Harmless for a child looking at the screen; it makes automated browser checks of timing unreliable unless the window is visible. A worker-backed timer would fix it.
 
-17. **Silent-switch fix unconfirmed on a device, and partial.** The `'playback'` audio session (D-039, 29 September 2026) should let chords play with the iPhone on silent, but it has only been unit-tested. Before iOS 16.4 the switch still mutes the piano. Whether the spoken colour names (Web Speech) obey the switch has not been checked. A page cannot read the switch or the volume, so the app cannot warn about either. Expect the Continue screen more often: in `'playback'`, other audio started mid-session (Control Center, Siri, a call) interrupts the app's context, which is marked stale, and the next tap rebuilds it.
+17. **Silent-switch fix unconfirmed on a device, and partial.** The `'playback'` audio session (D-039, 29 September 2026) should let chords play with the iPhone on silent, but it has only been unit-tested. Before iOS 16.4 the switch still mutes the piano. A page cannot read the switch or the volume, so the app cannot warn about either. Expect the Continue screen more often: in `'playback'`, other audio started mid-session (Control Center, Siri, a call) interrupts the app's context, which is marked stale, and the next tap rebuilds it.

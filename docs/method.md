@@ -57,7 +57,7 @@ The four labels are defined in [README.md](README.md). Here is how the main rule
 |---|---|---|
 | Fixed chord set, fixed voicings, fixed order, fixed colours | Reported method | Verified against Figures 2–3 and Table 1 of Sakakibara (2014). |
 | Colour-only identity during chord training | Reported method | No note names reach the child. |
-| Neutral correction: label, replay, required tap | Reported method | Fidelity to the procedure and to the child's wellbeing. |
+| Neutral correction: the chord replays with only the right card to tap | Operational definition | Parent and teacher accounts of the method say to give the answer immediately, never say "no", and react the same to right and wrong. The app shows the answer as the one remaining card; it does not speak it. |
 | Parent-controlled advancement, never automatic | Reported method + product decision | The dashboard button is never gated. |
 | ~100 trials/day as 4 sessions of 20 to 25 | Reported method + product default | Onboarding text says 25; config allows 20 or 25. |
 | One active chord is unscored familiarisation | Operational definition | One visible card cannot test discrimination. |

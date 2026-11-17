@@ -54,6 +54,17 @@ export function claimPlaybackAudioSession() {
 /** What `play()` managed: the chord started, or sound needs a tap first (nothing played). */
 export type PlayResult = 'played' | 'needs-tap';
 
+/** How long the replayed chord waits after the wrong-guess note starts, so it lands on the note's quiet tail. */
+const MISS_TONE_MS = 220;
+const MISS_TONE_HZ = 392; // G4
+const MISS_TONE_LENGTH_S = 0.3;
+/** Each partial's pitch as a multiple of the note, its starting level, and its decay time constant. */
+const MISS_TONE_PARTIALS = [
+  { ratio: 1, levelDb: -23.7, decayS: 0.09 },
+  { ratio: 4, levelDb: -32.8, decayS: 0.025 },
+  { ratio: 10, levelDb: -45.6, decayS: 0.01 },
+];
+
 export class AudioEngine {
   private sampler: Tone.Sampler | null = null;
   /**
@@ -270,51 +281,35 @@ export class AudioEngine {
     return 450;
   }
 
-  speak(text: string): Promise<void> {
-    return new Promise((resolve) => {
-      if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-        setTimeout(resolve, 800);
-        return;
-      }
+  /**
+   * The sound for a wrong guess: one soft marimba-like note (G4), chosen by ear from a dozen
+   * candidates as the one that sounds nice rather than like a buzzer. Three sine partials, each
+   * fading exponentially (a straight line in dB): the fundamental rings for about 0.3 s, and two
+   * quick overtones give the woody knock at the start. The mix peaks at -22 dB, 6 dB under the
+   * success chime. Returns how long to wait before playing anything over it; the quiet tail may
+   * run past that.
+   */
+  playMissTone(): number {
+    if (Tone.getContext().state !== 'running') return MISS_TONE_MS;
 
-      try {
-        window.speechSynthesis.cancel();
-        if (window.speechSynthesis.paused) {
-          window.speechSynthesis.resume();
-        }
+    const start = Tone.now() + 0.02;
+    MISS_TONE_PARTIALS.forEach(({ ratio, levelDb, decayS }) => {
+      const osc = new Tone.Oscillator(MISS_TONE_HZ * ratio, "sine").toDestination();
+      // Fade until the partial is 60 dB down or the note ends, whichever comes first.
+      const fadeS = Math.min(MISS_TONE_LENGTH_S, 6.9 * decayS);
 
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 0.92;
-        utterance.pitch = 1.0;
-        utterance.volume = 1.0;
-        
-        let resolved = false;
-        const finish = () => {
-          if (!resolved) {
-            resolved = true;
-            resolve();
-          }
-        };
+      osc.volume.setValueAtTime(-100, start);
+      osc.volume.linearRampToValueAtTime(levelDb, start + 0.004);
+      // Amplitude e^(-t/decay) is a drop of 8.686 dB per decay time.
+      osc.volume.linearRampToValueAtTime(levelDb - 8.686 * fadeS / decayS, start + fadeS);
+      osc.volume.linearRampToValueAtTime(-100, start + fadeS + 0.02);
 
-        utterance.onend = finish;
-        utterance.onerror = finish;
-        // Fallback safety timer if browser speechSynthesis fails to fire onend
-        const words = text.split(' ').length;
-        const estimatedDurationMs = Math.max(1000, words * 400 + 400);
-        setTimeout(finish, estimatedDurationMs);
-
-        const voices = window.speechSynthesis.getVoices();
-        if (voices.length > 0) {
-          const preferred = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Karen')));
-          if (preferred) utterance.voice = preferred;
-        }
-        
-        window.speechSynthesis.speak(utterance);
-      } catch (e) {
-        console.warn('Speech synthesis error:', e);
-        setTimeout(resolve, 800);
-      }
+      osc.onstop = () => osc.dispose();
+      osc.start(start);
+      osc.stop(start + fadeS + 0.03);
     });
+
+    return MISS_TONE_MS;
   }
 }
 

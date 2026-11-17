@@ -8,8 +8,8 @@ import ResumePrompt from './ResumePrompt';
 import { newId } from '../utils/id';
 
 /**
- * Only the chord length applies here, not the card lock: the intro speaks the colour name after
- * the chord and only then enables the card, so the child always hears both.
+ * Only the chord length applies here, not the card lock: the intro enables the card when the
+ * chord has finished, so the child always hears all of it.
  */
 export default function IntroMode({ profileId, chordId, chordDurationMs, chordLabels, onExit }: { profileId: string, chordId: string, chordDurationMs: number, chordLabels: ChordLabelStyle, onExit: () => void }) {
   const [step, setStep] = useState(0);
@@ -64,14 +64,6 @@ export default function IntroMode({ profileId, chordId, chordDurationMs, chordLa
     setIsPlaying(true);
     setStatusText('listening');
 
-    if (currentStep === 0) {
-      // The intro opens with a spoken instruction and a brief pause before the first chord.
-      await audio.speak("Listen to the sound, then tap the card.");
-      if (!isMountedRef.current) return;
-      await new Promise(r => setTimeout(r, 400));
-      if (!isMountedRef.current) return;
-    }
-
     const chord = CHORDS_MAP.get(chordId)!;
 
     // 1. Play acoustic piano chord for the whole configured length. If the sound needs a tap to
@@ -83,11 +75,7 @@ export default function IntroMode({ profileId, chordId, chordDurationMs, chordLa
     await new Promise(r => setTimeout(r, chordDurationMs));
     if (!isMountedRef.current) return;
 
-    // 2. Speak color name (e.g. "Red")
-    await audio.speak(chord.displayIdentity);
-    if (!isMountedRef.current) return;
-
-    // 3. Enable button for child to tap
+    // 2. Enable button for child to tap
     setIsPlaying(false);
     setStatusText('tap');
     isProcessingRef.current = false;
